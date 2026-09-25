@@ -68,6 +68,8 @@ func _process(delta: float) -> void:
 
 
 func _on_choice(id: String) -> void:
+	if id in ["start", "select", "lab"]:
+		menu.active = false  # no double-triggering while the screen fades out
 	match id:
 		"start":
 			GameState.current_level = GameState.unlocked - 1

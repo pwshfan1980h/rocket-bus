@@ -87,10 +87,16 @@ func _on_cell_input(event: InputEvent, i: int) -> void:
 			_refresh()
 
 
+var _leaving := false
+
+
 func _play(i: int) -> void:
+	if _leaving:
+		return
 	if i >= GameState.unlocked:
 		Audio.play("sting_hard", -6.0)
 		return
+	_leaving = true
 	Audio.play("ui_select", -4.0)
 	GameState.current_level = i
 	Transition.go("res://scenes/level.tscn")

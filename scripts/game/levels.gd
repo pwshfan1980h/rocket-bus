@@ -3,6 +3,8 @@ class_name Levels
 ## Gap dy is relative to the road before the ramp (negative = land higher).
 
 const WORLDS := ["DESERT", "JUNGLE", "MOUNTAINS", "SNOW", "VOLCANO"]
+## The ramp alone carries the bus ~200px, so every gap gets this much extra to make the rocket matter.
+const GAP_EXTRA := 100.0
 
 
 static func count() -> int:
@@ -113,7 +115,8 @@ static func _s(length: float, dy: float) -> Dictionary:
 
 
 static func _j(ramp_len: float, rise: float, gap_len: float, kind: String, dy := 0.0) -> Array:
-	return [{"t": "ramp", "len": ramp_len, "rise": rise}, {"t": "gap", "len": gap_len, "kind": kind, "dy": dy}]
+	return [{"t": "ramp", "len": ramp_len, "rise": rise},
+		{"t": "gap", "len": gap_len + GAP_EXTRA, "kind": kind, "dy": dy}]
 
 
 static func _fuel() -> Dictionary:

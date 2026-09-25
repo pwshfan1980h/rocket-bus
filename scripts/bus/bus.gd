@@ -108,6 +108,7 @@ var _flame_clock := 0.0
 var _air_time := 0.0
 var _flip_time := 0.0
 var _prev_vel := Vector2.ZERO
+var _since_landing := 99.0
 var _skin: Node2D
 
 
@@ -338,8 +339,10 @@ func _drive(right: float) -> void:
 
 
 func _hold_brakes() -> void:
+	# Lock the wheels and scrub speed; the tires alone can't stop a sliding bus.
 	for w in wheels:
-		w.angular_velocity = move_toward(w.angular_velocity, 0.0, 2.0)
+		w.angular_velocity = 0.0
+	chassis.linear_velocity.x = move_toward(chassis.linear_velocity.x, 0.0, 6.0)
 
 
 func honk() -> void:
@@ -478,15 +481,18 @@ func _check_landing(wheel_contacts: int, body_contact: bool, delta: float) -> vo
 		if _flip_time > 0.4:
 			_crash("FLIPPED IT")
 			return
-		# Slamming the body into something while driving (airborne hits are graded below).
-		var driving := _air_time < min_air_time
-		if driving and (_prev_vel - chassis.linear_velocity).length() > body_crash_speed * 2.0:
+		# Slamming the nose into a wall while driving. Scraping the belly on a
+		# landing (suspension bottoming out) doesn't count; landings are graded below.
+		var driving := _air_time < min_air_time and _since_landing > 0.6
+		if driving and absf(_prev_vel.x - chassis.linear_velocity.x) > body_crash_speed * 2.0:
 			_crash("HEAD-ON")
 			return
+	_since_landing += delta
 	if wheel_contacts == 0 and not body_contact:
 		_air_time += delta
 		return
 	if _air_time >= min_air_time:
+		_since_landing = 0.0
 		_touchdown(wheel_contacts == 0)
 	_air_time = 0.0
 

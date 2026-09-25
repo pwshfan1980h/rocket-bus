@@ -237,12 +237,12 @@ func _bot_drive() -> void:
 		target_angle = atan2(ahead - land_y, 30.0)
 		if p.x > next.x0 - 70 and p.x < next.x1:
 			var dy := land_y - 31 - p.y
-			var t := (v.y + sqrt(maxf(0.0, v.y * v.y + 2 * 700 * dy))) / 700.0
+			var t := (-v.y + sqrt(maxf(0.0, v.y * v.y + 2 * 700 * dy))) / 700.0  # time to fall to the landing height
 			fire = p.x + v.x * t < next.x1 + 130 or not bus.airborne
 	if bus.airborne:
 		var err := wrapf(c.rotation - target_angle, -PI, PI)
 		right = -clampf(err * 2.0 + c.angular_velocity * 2.5, -1.0, 1.0)  # + = nose down
-	bus.ai_input = {"right": right, "fire": fire}
+	bus.ai_input = {"right": right, "fire": fire and not "--norocket" in _args}
 
 
 func _bot_done(result: String, detail: String) -> void:
@@ -276,6 +276,7 @@ func _build_hud() -> void:
 	back.size = Vector2(64, 10)
 	layer.add_child(back)
 	var fill := ColorRect.new()
+	fill.color = Color("#ff4aa8")
 	fill.position = Vector2(401, 11)
 	fill.size = Vector2(60, 6)
 	layer.add_child(fill)
@@ -402,6 +403,9 @@ func _set_score(v: int, label: Label) -> void:
 
 
 func _on_menu_choice(id: String) -> void:
+	if id != "resume":
+		for m in get_tree().get_nodes_in_group("menus"):
+			m.active = false
 	match id:
 		"resume":
 			_toggle_pause()

@@ -34,6 +34,7 @@ var _road_y := 0.0  # road height ignoring ramps
 var _cur: PackedVector2Array
 var _cur_ramps: Array = []
 var _time := 0.0
+var _barriers: Array[Vector2] = []
 
 
 func build(segments: Array, biome_name: String) -> Terrain:
@@ -86,12 +87,28 @@ func build(segments: Array, biome_name: String) -> Terrain:
 	_add_flat(500)
 	end_x = _x
 	_close_island()
+	_add_barrier(-RUNWAY)
+	_add_barrier(end_x - 20)
 	for isl in islands:
 		for p in isl.pts:
 			road_top = minf(road_top, p.y)
 			road_bottom = maxf(road_bottom, p.y)
 	_build_nodes()
 	return self
+
+
+func _add_barrier(x: float) -> void:
+	var y := surface_y(x + 10)
+	var wall := StaticBody2D.new()
+	wall.collision_layer = 1
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(20, 400)
+	cs.shape = rect
+	cs.position = Vector2(x + 10, y - 200)
+	wall.add_child(cs)
+	add_child(wall)
+	_barriers.append(Vector2(x, y))
 
 
 ## Road height at x (the island's collision surface), or NAN over a gap.
@@ -269,6 +286,10 @@ func _draw_overlay(n: Node2D) -> void:
 				n.draw_rect(Rect2(end if dir > 0 else end - w, y, w, 6), dark)
 	for r in ramps:
 		_draw_ramp(n, r)
+	for b in _barriers:
+		n.draw_rect(Rect2(b.x, b.y - 40, 20, 40), Color("#2a2430"))
+		for k in 5:
+			n.draw_rect(Rect2(b.x, b.y - 40 + k * 8, 20, 4), Color("#ffc828"))
 
 
 func _draw_ramp(n: Node2D, r: Dictionary) -> void:

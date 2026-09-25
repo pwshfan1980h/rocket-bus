@@ -20,6 +20,7 @@ func setup(entries: Array, size := 8, spacing := 14) -> MenuList:
 
 
 func _ready() -> void:
+	add_to_group("menus")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for i in items.size():
 		var l := Label.new()
