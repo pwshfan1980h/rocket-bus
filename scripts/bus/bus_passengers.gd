@@ -24,7 +24,9 @@ const QUIPS := {
 	"good": ["NICE!", "SMOOTH!", "OK OK!", "COOL!"],
 	"hard": ["OW!", "MY BACK!", "HEY!!", "MY COFFEE!", "DRIVER!!", "OOF!"],
 	"air": ["WHEEE!", "WOAH!", "AAAH!"],
-	"crash": ["AAAAH!", "MY HAT!", "NOOO!", "MOMMY!"],
+	"crash": ["AAAAH!", "MY HAT!", "NOOO!", "MOMMY!", "MY SPLEEN!", "I QUIT!", "WORTH IT!",
+		"SUE THE DRIVER!", "NOT AGAIN!", "WHEEEEE-OW"],
+	"bonk": ["BONK!", "OOF!", "OW!", "MY FACE!", "UGH", "BOING!"],
 }
 
 var riders: Array[Dictionary] = []
@@ -97,39 +99,35 @@ func react(grade: String) -> void:
 			_quip_some(2, "hard")
 
 
-## Throws every rider out of the bus as a small tumbling physics body.
+## Says a flavor line from a random visible rider, with a little voice.
+func chatter(line: String, voice := "voice_blip") -> void:
+	var pool := riders.filter(func(r): return r.sprite.visible)
+	if pool.is_empty():
+		return
+	var r: Dictionary = pool.pick_random()
+	Audio.play(voice, -8.0, 0.8 + r.row * 0.12, 0.05)
+	Fx.float_text(r.sprite.global_position + Vector2(4, -2), line, SHIRTS[r.row].lightened(0.25))
+	_set_mood(r, Mood.CHEER if voice == "voice_happy" else Mood.SHOCK if voice == "voice_hurt" else Mood.IDLE, 0.8)
+
+
+## Throws every rider out of the bus as a floppy ragdoll (head, torso, arms, legs).
 func eject(into: Node, bus_velocity: Vector2) -> void:
 	var delay := 0.0
 	for r in riders:
 		var s: Sprite2D = r.sprite
-		var body := RigidBody2D.new()
-		body.collision_layer = 8
-		body.collision_mask = 1
-		body.mass = 0.08
-		var shape := CollisionShape2D.new()
-		var circle := CircleShape2D.new()
-		circle.radius = 3.5
-		shape.shape = circle
-		body.add_child(shape)
-		var face := Sprite2D.new()
-		face.texture = SHEET
-		face.hframes = 3
-		face.vframes = 6
-		face.frame = r.row * 3 + Mood.SHOCK
-		body.add_child(face)
-		body.global_position = s.global_position + Vector2(4, 5).rotated(s.global_rotation)
-		body.rotation = s.global_rotation
-		body.linear_velocity = bus_velocity * 0.6 + Vector2(randf_range(-140, 140), randf_range(-340, -180))
-		body.angular_velocity = randf_range(-14.0, 14.0)
-		into.add_child(body)
+		var at := s.global_position + Vector2(4, 5).rotated(s.global_rotation)
+		var launch := bus_velocity * 0.6 + Vector2(randf_range(-160, 160), randf_range(-360, -180))
+		var doll := Ragdoll.new()
+		doll.build(into, at, s.global_rotation, launch, r.row, SHIRTS[r.row])
 		s.hide()
-		if randf() < 0.5:
+		if randf() < 0.6:
+			delay += 0.12
 			var text: String = QUIPS.crash.pick_random()
 			var color: Color = SHIRTS[r.row].lightened(0.2)
-			delay += 0.15
 			get_tree().create_timer(delay).timeout.connect(func():
-				if is_instance_valid(body):
-					Fx.float_text(body.global_position, text, color))
+				if is_instance_valid(doll.torso):
+					Audio.play("voice_scream", -12.0, 0.9 + r.row * 0.1, 0.05)
+					Fx.float_text(doll.torso.global_position + Vector2(0, -10), text, color))
 
 
 func _set_mood(r: Dictionary, mood: Mood, duration := 0.0) -> void:

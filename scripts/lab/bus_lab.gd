@@ -40,8 +40,10 @@ func _ready() -> void:
 
 	var sky := CanvasLayer.new()
 	sky.layer = -10
-	sky.add_child(preload("res://scripts/lab/backdrop.gd").new())
+	sky.add_child(Backdrop.new().setup("city"))
 	add_child(sky)
+	Audio.music("music_menu")
+	Audio.ambience("amb_city_loop")
 
 	add_child(preload("res://scripts/lab/lab_ground.gd").new())
 	for x in range(-600, 4200, 380):
@@ -83,6 +85,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			spawn(n)
 		elif event.is_action("reset"):
 			spawn(preset)
+		elif event.is_action("pause"):
+			Transition.go("res://scenes/main_menu.tscn")
 
 
 func _physics_process(delta: float) -> void:
@@ -200,7 +204,7 @@ func _build_hud() -> void:
 	_label(layer, "BUS LAB", Vector2(176, 16), 8, Color("#ff4aa8"), 2)
 	_hud.preset = _label(layer, "", Vector2(8, 28), 8, Color("#3cf0dc"), 2)
 	_hud.result = _label(layer, "", Vector2(8, 232), 8, Color.WHITE, 2)
-	_label(layer, "1 PERFECT 2 GOOD 3 HARD 4 CRASH 5 RAMP 6 DRIVE\n<- -> DRIVE/TILT   SPACE ROCKET   R RESET",
+	_label(layer, "1 PERFECT 2 GOOD 3 HARD 4 CRASH 5 RAMP 6 DRIVE\n<- -> DRIVE/TILT  SPACE ROCKET  R RESET  ESC MENU",
 			Vector2(8, 248), 8, Color("#d8f8ff"), 2)
 	_label(layer, "FUEL", Vector2(364, 10), 8, Color("#ffcc26"), 2)
 	var back := ColorRect.new()

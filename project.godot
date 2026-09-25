@@ -4,7 +4,7 @@ config_version=5
 [application]
 
 config/name="Rocket Bus"
-run/main_scene="res://scenes/bus_lab.tscn"
+run/main_scene="res://scenes/boot.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [autoload]
@@ -12,6 +12,8 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 Controls="*res://scripts/autoload/controls.gd"
 Fx="*res://scripts/autoload/fx.gd"
 Audio="*res://scripts/autoload/audio.gd"
+GameState="*res://scripts/autoload/game_state.gd"
+Transition="*res://scripts/autoload/transition.gd"
 
 [display]
 
