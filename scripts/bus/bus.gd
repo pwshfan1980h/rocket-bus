@@ -11,6 +11,7 @@ extends Node2D
 
 signal landed(grade: String, impact: float, angle_deg: float)
 signal crashed(reason: String)
+signal hazard_hit(kind: String)
 
 const TEX_FRAME := preload("res://assets/sprites/bus_frame.png")
 const TEX_WHEEL := preload("res://assets/sprites/wheel.png")
@@ -78,6 +79,12 @@ var fuel := 0.0
 var rocket_firing := false
 var is_crashed := false
 var last_landing := {}
+var airborne := false
+var throttle := 0.0  ## current -1..1 drive input
+var wants_fire := false
+var controls_enabled := true
+var in_hazard := ""
+var audio: BusAudio
 ## Scripted input (lab demos, replays): {"right": -1..1, "fire": bool}. Empty = player.
 var ai_input := {}
 
@@ -101,6 +108,7 @@ var _flame_clock := 0.0
 var _air_time := 0.0
 var _flip_time := 0.0
 var _prev_vel := Vector2.ZERO
+var _skin: Node2D
 
 
 func setup(pos: Vector2, rot := 0.0, vel := Vector2.ZERO, spin := 0.0) -> Bus:
@@ -118,6 +126,8 @@ func _ready() -> void:
 	_build_wheels()
 	_build_lights()
 	_prev_vel = _spawn_vel
+	audio = BusAudio.new(self)
+	add_child(audio)
 
 
 func get_speed() -> float:
@@ -156,6 +166,7 @@ func _build_chassis() -> void:
 
 func _build_skin() -> void:
 	var skin := Node2D.new()
+	_skin = skin
 	skin.name = "Skin"
 	chassis.add_child(skin)
 	var frame := _sprite(TEX_FRAME, CANVAS_ORIGIN)
@@ -272,19 +283,29 @@ func _build_lights() -> void:
 # --- Simulation -------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	if is_crashed:
+	if is_crashed or in_hazard != "":
 		_burn_loose_rocket(delta)
 		return
 	var right: float = ai_input.get("right", 0.0) if not ai_input.is_empty() \
 			else Input.get_axis("move_left", "move_right")
 	var fire: bool = ai_input.get("fire", false) if not ai_input.is_empty() \
 			else Input.is_action_pressed("rocket")
+	if not controls_enabled:
+		right = 0.0
+		fire = false
+	elif ai_input.is_empty() and Input.is_action_just_pressed("horn"):
+		honk()
+	throttle = right
+	wants_fire = fire
 
 	var wheel_contacts := 0
 	for w in wheels:
 		if w.get_contact_count() > 0:
 			wheel_contacts += 1
 	var body_contact := chassis.get_contact_count() > 0
+	airborne = wheel_contacts == 0
+	if not controls_enabled and not airborne:
+		_hold_brakes()
 
 	if wheel_contacts > 0:
 		_drive(right)
@@ -314,6 +335,112 @@ func _drive(right: float) -> void:
 				w.apply_torque(-brake_torque * signf(w.angular_velocity))
 			elif w.angular_velocity > -max_wheel_spin * 0.4:
 				w.apply_torque(drive_torque * right * 0.6)
+
+
+func _hold_brakes() -> void:
+	for w in wheels:
+		w.angular_velocity = move_toward(w.angular_velocity, 0.0, 2.0)
+
+
+func honk() -> void:
+	audio.honk()
+	Fx.float_text(chassis.global_position + Vector2(62, -10), "HONK!", Color("#ffe14a"))
+
+
+## The bus has dropped into a gap: "chasm", "water", "swamp", "ice" or "lava".
+func hazard(kind: String, surface: Vector2) -> void:
+	if in_hazard != "" or is_crashed:
+		return
+	in_hazard = kind
+	_set_flames(false)
+	rocket_firing = false
+	audio.stop_loops()
+	hazard_hit.emit(kind)
+	var bodies: Array[RigidBody2D] = [chassis]
+	bodies.append_array(wheels)
+	match kind:
+		"chasm":
+			Audio.play("fall_whistle", -2.0)
+			Audio.play("voice_scream", -6.0, 1.1, 0.1)
+			get_tree().create_timer(1.7).timeout.connect(Audio.play.bind("crash", -14.0, 0.7))
+		"lava":
+			Audio.play("lava_sizzle", 0.0)
+			Audio.play("voice_scream", -4.0, 1.2, 0.1)
+			_sink(bodies, 0.12, 5.0)
+			_skin_tint(Color(1.0, 0.35, 0.2), 1.2)
+			_add_fx(_fire_particles(), chassis)
+			_splash(surface, Color(1.0, 0.55, 0.15))
+		_:  # water, swamp, icy water
+			Audio.play("splash", 0.0)
+			get_tree().create_timer(0.6).timeout.connect(Audio.play.bind("bubbles", -4.0))
+			get_tree().create_timer(0.8).timeout.connect(Audio.play.bind("voice_glub", -4.0, 1.0, 0.2))
+			_sink(bodies, 0.25, 3.0)
+			var c := Color(0.55, 0.85, 1.0) if kind != "swamp" else Color(0.5, 0.7, 0.3)
+			_splash(surface, c)
+			_skin_tint(Color(0.55, 0.75, 1.0) if kind != "swamp" else Color(0.55, 0.7, 0.4), 2.0)
+	var tw := create_tween()
+	tw.tween_interval(1.0)
+	tw.tween_callback(_set_bus_lights.bind(false))
+
+
+func _sink(bodies: Array[RigidBody2D], gravity_scale: float, damp: float) -> void:
+	for b in bodies:
+		b.gravity_scale = gravity_scale
+		b.linear_damp = damp
+		b.angular_damp = damp
+
+
+func _skin_tint(c: Color, time: float) -> void:
+	create_tween().tween_property(_skin, "modulate", c, time)
+
+
+func _splash(at: Vector2, color: Color) -> void:
+	var p := CPUParticles2D.new()
+	p.position = at
+	p.one_shot = true
+	p.explosiveness = 0.9
+	p.amount = 90
+	p.lifetime = 1.1
+	p.direction = Vector2.UP
+	p.spread = 35.0
+	p.gravity = Vector2(0, 700)
+	p.initial_velocity_min = 120.0
+	p.initial_velocity_max = 380.0
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(40, 2)
+	p.scale_amount_min = 1.0
+	p.scale_amount_max = 3.0
+	p.color_ramp = _gradient([[0.0, Color.WHITE], [0.3, color], [1.0, Color(color, 0.0)]])
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(1.6).timeout.connect(p.queue_free)
+
+
+func _fire_particles() -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.amount = 60
+	p.lifetime = 0.9
+	p.local_coords = false
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(44, 10)
+	p.direction = Vector2.UP
+	p.spread = 20.0
+	p.gravity = Vector2(0, -90)
+	p.initial_velocity_min = 20.0
+	p.initial_velocity_max = 70.0
+	p.scale_amount_min = 1.5
+	p.scale_amount_max = 3.5
+	p.color_ramp = _gradient([
+		[0.0, Color(1, 0.95, 0.5)], [0.3, Color(1, 0.5, 0.1)], [0.6, Color(0.5, 0.15, 0.1, 0.8)],
+		[1.0, Color(0.2, 0.15, 0.15, 0.0)],
+	])
+	return p
+
+
+func _add_fx(node: Node2D, parent: Node) -> void:
+	parent.add_child(node)
+	if node is CPUParticles2D:
+		node.emitting = true
 
 
 func _air_control(right: float) -> void:

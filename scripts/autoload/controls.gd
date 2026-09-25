@@ -6,6 +6,8 @@ const BINDINGS := {
 	"move_left": [KEY_A, KEY_LEFT],  # brake/reverse on the ground, nose-up in the air
 	"rocket": [KEY_SPACE],
 	"reset": [KEY_R],
+	"horn": [KEY_H],
+	"pause": [KEY_ESCAPE, KEY_P],
 }
 
 

@@ -73,7 +73,7 @@ func on_airborne(air_time: float, rocket_on: bool) -> void:
 				_set_mood(r, Mood.CHEER if rocket_on and r.row % 2 == 0 else Mood.SHOCK, 0.3)
 		if not _air_quipped and air_time > 0.55:
 			_air_quipped = true
-			_quip(riders.pick_random(), QUIPS.air.pick_random())
+			_quip(riders.pick_random(), QUIPS.air.pick_random(), "air")
 
 
 func react(grade: String) -> void:
@@ -144,11 +144,14 @@ func _quip_some(count: int, kind: String) -> void:
 	lines.shuffle()
 	for i in mini(count, pool.size()):
 		var r: Dictionary = pool[i]
-		get_tree().create_timer(0.12 + i * 0.22).timeout.connect(_quip.bind(r, lines[i % lines.size()]))
+		get_tree().create_timer(0.12 + i * 0.22).timeout.connect(_quip.bind(r, lines[i % lines.size()], kind))
 
 
-func _quip(r: Dictionary, line: String) -> void:
+func _quip(r: Dictionary, line: String, kind: String) -> void:
 	if not is_instance_valid(r.sprite) or not r.sprite.visible:
 		return
+	var voice: String = {"perfect": "voice_happy", "good": "voice_happy", "hard": "voice_hurt",
+			"air": "voice_happy"}.get(kind, "voice_blip")
+	Audio.play(voice, -8.0, 0.8 + r.row * 0.12, 0.05)
 	var at: Vector2 = r.sprite.global_position + Vector2(4, -2)
 	Fx.float_text(at, line, SHIRTS[r.row].lightened(0.25))
