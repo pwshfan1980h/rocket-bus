@@ -19,19 +19,22 @@ const TEX_FLAME := preload("res://assets/sprites/flame.png")
 const TEX_AXLE := preload("res://assets/sprites/axle.png")
 const TEX_RADIAL := preload("res://assets/sprites/light_radial.png")
 const TEX_CONE := preload("res://assets/sprites/light_cone.png")
-const SHELL := [  # piece, texture, rect in body px (x 0..79 rear->front, y 0..45 roof->skirt)
+const SHELL := [  # piece, texture, rect in body px (x 0..79 cabin, 80..99 hood; y 0..45 roof->skirt)
 	["sign", preload("res://assets/sprites/bus_sign.png"), Rect2(26, -7, 28, 7)],
 	["roof", preload("res://assets/sprites/bus_roof.png"), Rect2(0, 0, 80, 4)],
 	["upper", preload("res://assets/sprites/bus_upper.png"), Rect2(0, 4, 80, 18)],
 	["lower", preload("res://assets/sprites/bus_lower.png"), Rect2(0, 22, 80, 24)],
+	["hood", preload("res://assets/sprites/bus_hood.png"), Rect2(80, 26, 20, 20)],
+	["fender_rear", preload("res://assets/sprites/bus_fender_rear.png"), Rect2(4, 34, 29, 12)],
+	["fender_front", preload("res://assets/sprites/bus_fender_front.png"), Rect2(60, 34, 29, 12)],
 ]
 
 const BODY_ORIGIN := Vector2(-40, -23)  # body px (0,0) in chassis space
-const CANVAS_ORIGIN := Vector2(-40, -30)  # top-left of the 80x53 piece canvases
-const WHEEL_X: Array[float] = [-24.0, 24.0]
-const WHEEL_RADIUS := 7.0
-const GROOVE_TOP := 10.0
-const GROOVE_LENGTH := 17.0
+const CANVAS_ORIGIN := Vector2(-40, -30)  # top-left of the 100x53 piece canvases
+const WHEEL_X: Array[float] = [-22.0, 34.0]
+const WHEEL_RADIUS := 9.0
+const GROOVE_TOP := 12.0
+const GROOVE_LENGTH := 16.0
 const WHEEL_REST_Y := 21.0
 const ROCKET_POS := Vector2(-54, 7)
 const NOZZLES: Array[Vector2] = [Vector2(-54, 10.5), Vector2(-54, 17.5)]
@@ -41,7 +44,7 @@ const LAYER_DEBRIS := 4
 
 @export_group("Body")
 @export var chassis_mass := 1.0
-@export var center_of_mass_y := 5.0  ## +y is lower. A double-decker is top-heavy.
+@export var center_of_mass := Vector2(5, 5)  ## +y is lower. The engine pulls it forward.
 @export_group("Suspension")
 @export var spring_stiffness := 90.0
 @export var spring_damping := 1.4
@@ -49,7 +52,7 @@ const LAYER_DEBRIS := 4
 @export_group("Drive")
 @export var drive_torque := 2600.0
 @export var brake_torque := 3200.0
-@export var max_wheel_spin := 50.0
+@export var max_wheel_spin := 45.0
 @export_group("Rocket")
 @export var rocket_thrust := 950.0
 @export var rocket_nose_lift := 900.0  ## low-mounted nozzles lift the nose a little
@@ -132,7 +135,7 @@ func _build_chassis() -> void:
 	chassis.name = "Chassis"
 	chassis.mass = chassis_mass
 	chassis.center_of_mass_mode = RigidBody2D.CENTER_OF_MASS_MODE_CUSTOM
-	chassis.center_of_mass = Vector2(0, center_of_mass_y)
+	chassis.center_of_mass = center_of_mass
 	chassis.physics_material_override = _material(0.5, 0.0)
 	chassis.contact_monitor = true
 	chassis.max_contacts_reported = 4
@@ -145,7 +148,7 @@ func _build_chassis() -> void:
 	var poly := CollisionPolygon2D.new()
 	poly.polygon = PackedVector2Array([
 		Vector2(-40, -21), Vector2(-38, -23), Vector2(38, -23), Vector2(40, -21),
-		Vector2(40, 18), Vector2(-40, 18),
+		Vector2(40, 4), Vector2(55, 8), Vector2(58, 10), Vector2(58, 18), Vector2(-40, 18),
 	])
 	chassis.add_child(poly)
 	add_child(chassis)
@@ -208,7 +211,7 @@ func _build_wheels() -> void:
 	for x in WHEEL_X:
 		var w := RigidBody2D.new()
 		w.name = "Wheel"
-		w.mass = 0.15
+		w.mass = 0.2
 		w.physics_material_override = _material(1.2, 0.05)
 		w.contact_monitor = true
 		w.max_contacts_reported = 2
@@ -252,10 +255,10 @@ func _attach(joint: Joint2D, wheel: RigidBody2D) -> void:
 
 
 func _build_lights() -> void:
-	_headlight = _light(TEX_CONE, Vector2(39, 16), Color(1, 0.95, 0.75), 1.4, 1.0)
+	_headlight = _light(TEX_CONE, Vector2(57, 10), Color(1, 0.95, 0.75), 1.4, 1.0)
 	_headlight.offset = Vector2(64, 0)
 	chassis.add_child(_headlight)
-	chassis.add_child(_light(TEX_RADIAL, Vector2(39, 16), Color(1, 0.95, 0.8), 1.0, 0.3))
+	chassis.add_child(_light(TEX_RADIAL, Vector2(55, 10), Color(1, 0.95, 0.8), 1.0, 0.3))
 	chassis.add_child(_light(TEX_RADIAL, Vector2(-40, 15), Color(1, 0.15, 0.1), 0.9, 0.4))
 	for y in [-11.0, 9.0]:
 		var cabin := _light(TEX_RADIAL, Vector2(0, y), Color(1, 0.82, 0.55), 1.3, 1.7)

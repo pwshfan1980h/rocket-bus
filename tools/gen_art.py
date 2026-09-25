@@ -5,7 +5,7 @@ Run from the project root:  python3 tools/gen_art.py
 
 Every breakable bus piece is drawn on the same 80x53 canvas so the pieces
 line up when stacked, and can be spawned as debris using the same transform.
-Body coordinates: x 0..79 (rear -> front), y 0..45 (roof -> skirt).
+Body coordinates: x 0..79 cabin (rear -> front), x 80..99 hood, y 0..45 (roof -> skirt).
 The canvas has OY rows of headroom above the roof for the roof sign.
 """
 import math
@@ -16,7 +16,7 @@ import zlib
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 OUT = os.path.join(ROOT, "assets", "sprites")
 
-W, H, OY = 80, 53, 7
+W, H, OY = 100, 53, 7  # body is 80 wide + a 20px school-bus hood
 
 CLEAR = (0, 0, 0, 0)
 
@@ -54,9 +54,14 @@ BLACK = (14, 12, 18)
 ARCH = (30, 20, 16)
 
 LOWER_WINDOWS = [(4, 13), (16, 27), (30, 41), (54, 61)]
+LOWER_WIN_Y = (27, 33)
 UPPER_WINDOWS = [(4, 15), (18, 29), (32, 43), (46, 57), (60, 71)]
-WHEEL_CX = (16, 64)
-ARCH_R = 9.5
+WHEEL_CX = (18, 74)
+ARCH_R = 10.5
+FENDER = (30, 28, 38)
+FENDER_L = (84, 80, 96)
+CHROME = (200, 206, 220)
+GRILLE = (40, 40, 50)
 
 
 class Canvas:
@@ -109,7 +114,7 @@ class Body(Canvas):
 def cut_arches(c, rim):
     for cx in WHEEL_CX:
         for y in range(30, 46):
-            for x in range(cx - 12, cx + 13):
+            for x in range(cx - 14, cx + 15):
                 d = math.hypot(x - cx + 0.5, y - 45.5)
                 if d <= ARCH_R:
                     c.set(x, y, CLEAR)
@@ -164,6 +169,15 @@ def frame():
     c.rect(0, 40, 79, 40, STEEL)
     for x in range(3, 78, 6):
         c.set(x, 42, STEEL_L)
+    c.rect(80, 40, 97, 43, STEEL_D)  # rail runs under the hood
+    c.rect(80, 40, 97, 40, STEEL)
+    c.rect(82, 30, 93, 39, (70, 72, 84))  # engine block
+    for x in range(83, 93, 3):
+        c.rect(x, 28, x + 1, 30, STEEL)  # cylinder heads
+    c.rect(82, 35, 93, 35, (50, 50, 60))
+    c.rect(94, 30, 96, 41, (120, 60, 50))  # radiator
+    for y in range(31, 41, 2):
+        c.set(95, y, (170, 90, 70))
     cut_arches(c, STEEL_D)
     c.save("bus_frame.png")
 
@@ -228,59 +242,93 @@ def lower_panel():
     c.rect(0, 42, 79, 45, SKIRT)
     c.rect(0, 45, 79, 45, SKIRT_D)
     for x0, x1 in LOWER_WINDOWS:
-        window(c, x0, 27, x1, 35, YEL_D)
+        window(c, x0, LOWER_WIN_Y[0], x1, LOWER_WIN_Y[1], YEL_D)
+    window(c, 66, 27, 77, 33, YEL_D)  # driver's side window
     # door
     c.rect(43, 26, 52, 41, YEL_D)
     c.rect(44, 27, 51, 41, GLASS)
     c.rect(47, 27, 48, 41, STEEL_D)
     c.set(45, 28, GLARE)
     c.set(50, 28, GLARE)
-    # windshield
-    c.rect(68, 26, 79, 26, YEL_D)
-    c.rect(69, 27, 78, 37, GLASS)
-    c.set(70, 28, GLARE)
-    c.set(71, 28, GLARE)
-    c.set(70, 29, GLARE)
-    c.rect(79, 27, 79, 41, YEL_D)
+    c.rect(79, 25, 79, 41, YEL_D)  # cab front edge (the hood takes over from here)
     # teal speed stripe with a slanted nose
-    for x in range(2, 64):
-        c.set(x, 38, TEAL)
-        c.set(x, 39, TEAL_D)
-    for i in range(4):
-        c.set(64 + i, 38 - i, TEAL)
-        c.set(64 + i, 39 - i, TEAL_D)
+    for x in range(2, 60):
+        c.set(x, 37, TEAL)
+        c.set(x, 38, TEAL_D)
+    for i in range(3):
+        c.set(60 + i, 37 - i, TEAL)
+        c.set(60 + i, 38 - i, TEAL_D)
     # lights + bumpers
-    c.rect(76, 38, 79, 40, HEADLIGHT)
-    c.set(79, 41, AMBER)
     c.rect(0, 36, 1, 40, TAIL)
     c.set(0, 41, AMBER)
     c.rect(0, 42, 4, 45, STEEL)
     c.rect(0, 42, 4, 42, STEEL_L)
-    c.rect(75, 42, 79, 45, STEEL)
-    c.rect(75, 42, 79, 42, STEEL_L)
     cut_arches(c, ARCH)
     c.save("bus_lower.png")
 
 
+def hood():
+    """School-bus nose: sloped hood, louvers, grille, headlight, black bumper."""
+    c = Body()
+    for x in range(80, 97):
+        top = 26 + round((x - 80) * 5 / 16)  # hood slopes down toward the grille
+        c.rect(x, top, x, 41, YEL)
+        c.set(x, top, YEL_L)
+    for x in range(84, 91, 2):  # louvers
+        c.rect(x, 31, x, 35, YEL_D)
+    c.rect(80, 38, 96, 38, BLACK)  # rub rail
+    c.rect(97, 30, 98, 41, CHROME)  # grille
+    for y in range(31, 41, 2):
+        c.set(97, y, GRILLE)
+    c.rect(94, 32, 96, 34, HEADLIGHT)
+    c.set(94, 32, CHROME)
+    c.set(96, 36, AMBER)
+    c.rect(78, 42, 99, 45, BLACK)  # front bumper
+    c.rect(78, 42, 99, 42, FENDER_L)
+    c.rect(96, 43, 99, 44, CHROME)
+    cut_arches(c, ARCH)
+    c.save("bus_hood.png")
+
+
+def fenders():
+    """Chunky black fender flares over each wheel, saved as two pieces."""
+    for name, cx in (("rear", WHEEL_CX[0]), ("front", WHEEL_CX[1])):
+        c = Body()
+        for y in range(28, 46):
+            for x in range(cx - 15, cx + 16):
+                d = math.hypot(x - cx + 0.5, y - 45.5)
+                if ARCH_R - 0.5 < d <= ARCH_R + 2.6 and y <= 44:
+                    c.set(x, y, FENDER)
+                    if d > ARCH_R + 1.8 and y < 40:
+                        c.set(x, y, FENDER_L)
+        c.rect(cx - 14, 44, cx - 11, 45, FENDER)  # flared feet
+        c.rect(cx + 11, 44, cx + 14, 45, FENDER)
+        c.save(f"bus_fender_{name}.png")
+
+
 def wheel():
-    c = Canvas(15, 15)
-    for y in range(15):
-        for x in range(15):
-            d = math.hypot(x - 7, y - 7)
-            if d <= 7.3:
+    """Chunky 19px knobby tire with a chrome 5-lug hub."""
+    n, r = 19, 9.3
+    c = Canvas(n, n)
+    m = (n - 1) / 2
+    for y in range(n):
+        for x in range(n):
+            d = math.hypot(x - m, y - m)
+            a = math.atan2(y - m, x - m)
+            knob = (int((a + math.pi) / (2 * math.pi) * 14) % 2) == 0
+            if d <= r - 1 or (d <= r and knob):
                 c.set(x, y, TIRE)
-            if d <= 4.3:
+            if r - 2.6 <= d <= r - 1.6 and knob:
+                c.set(x, y, TIRE_L)  # tread blocks make the spin readable
+            if d <= 5.2:
                 c.set(x, y, HUB_D)
-            if d <= 3.4:
+            if d <= 4.3:
                 c.set(x, y, HUB)
-    for i in range(8):  # tread blocks make the spin readable
-        a = i * math.pi / 4
-        c.set(round(7 + 6 * math.cos(a)), round(7 + 6 * math.sin(a)), TIRE_L)
-    for i in range(4):
-        a = i * math.pi / 2 + math.pi / 4
-        c.set(round(7 + 2 * math.cos(a)), round(7 + 2 * math.sin(a)), BOLT)
-    c.set(7, 7, BOLT)
-    c.set(7, 4, PINK)  # valve cap
+    for i in range(5):
+        a = i * 2 * math.pi / 5
+        c.set(round(m + 2.6 * math.cos(a)), round(m + 2.6 * math.sin(a)), BOLT)
+    c.set(round(m), round(m), PINK)
+    c.set(round(m), round(m - 1), PINK)
     c.save("wheel.png")
 
 
@@ -447,7 +495,7 @@ def light_cone():
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for fn in (frame, roof, roof_sign, upper_panel, lower_panel, wheel, rocket,
+    for fn in (frame, roof, roof_sign, upper_panel, lower_panel, hood, fenders, wheel, rocket,
                flame, passengers, axle, light_radial, light_cone):
         fn()
     print("art written to", os.path.normpath(OUT))

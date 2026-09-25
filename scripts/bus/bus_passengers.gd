@@ -13,7 +13,7 @@ const SWAY_LIMIT := Vector2(2.0, 3.0)
 # Top-left of each 8x10 rider sprite in bus-local px, plus sprite-sheet row.
 const SEATS := [
 	[Vector2(-34, -15), 0], [Vector2(-6, -15), 3], [Vector2(8, -15), 1], [Vector2(22, -15), 4],
-	[Vector2(-22, 5), 2], [Vector2(14, 5), 3], [Vector2(31, 5), 5],  # last = driver
+	[Vector2(-22, 5), 2], [Vector2(14, 5), 3], [Vector2(28, 5), 5],  # last = driver
 ]
 const SHIRTS := [
 	Color("#28c8b4"), Color("#b060ff"), Color("#ff9030"),
