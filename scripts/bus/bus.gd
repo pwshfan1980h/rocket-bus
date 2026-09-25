@@ -1,0 +1,582 @@
+class_name Bus
+extends Node2D
+## The Rocket Bus: a double-decker built from rigid bodies and joints.
+##
+##   Chassis (RigidBody2D) --GrooveJoint2D + DampedSpringJoint2D--> Wheel x2
+##
+## The shell (sign, roof, upper/lower panels) and the rocket are sprites on the
+## chassis until a crash; then they're swapped for loose debris bodies, the
+## joints are cut and the passengers are thrown out, leaving the skeleton frame.
+## Call setup() before adding the bus to the tree.
+
+signal landed(grade: String, impact: float, angle_deg: float)
+signal crashed(reason: String)
+
+const TEX_FRAME := preload("res://assets/sprites/bus_frame.png")
+const TEX_WHEEL := preload("res://assets/sprites/wheel.png")
+const TEX_ROCKET := preload("res://assets/sprites/rocket.png")
+const TEX_FLAME := preload("res://assets/sprites/flame.png")
+const TEX_AXLE := preload("res://assets/sprites/axle.png")
+const TEX_RADIAL := preload("res://assets/sprites/light_radial.png")
+const TEX_CONE := preload("res://assets/sprites/light_cone.png")
+const SHELL := [  # piece, texture, rect in body px (x 0..79 rear->front, y 0..45 roof->skirt)
+	["sign", preload("res://assets/sprites/bus_sign.png"), Rect2(26, -7, 28, 7)],
+	["roof", preload("res://assets/sprites/bus_roof.png"), Rect2(0, 0, 80, 4)],
+	["upper", preload("res://assets/sprites/bus_upper.png"), Rect2(0, 4, 80, 18)],
+	["lower", preload("res://assets/sprites/bus_lower.png"), Rect2(0, 22, 80, 24)],
+]
+
+const BODY_ORIGIN := Vector2(-40, -23)  # body px (0,0) in chassis space
+const CANVAS_ORIGIN := Vector2(-40, -30)  # top-left of the 80x53 piece canvases
+const WHEEL_X: Array[float] = [-24.0, 24.0]
+const WHEEL_RADIUS := 7.0
+const GROOVE_TOP := 10.0
+const GROOVE_LENGTH := 17.0
+const WHEEL_REST_Y := 21.0
+const ROCKET_POS := Vector2(-54, 7)
+const NOZZLES: Array[Vector2] = [Vector2(-54, 10.5), Vector2(-54, 17.5)]
+const LAYER_WORLD := 1
+const LAYER_BUS := 2
+const LAYER_DEBRIS := 4
+
+@export_group("Body")
+@export var chassis_mass := 1.0
+@export var center_of_mass_y := 5.0  ## +y is lower. A double-decker is top-heavy.
+@export_group("Suspension")
+@export var spring_stiffness := 90.0
+@export var spring_damping := 1.4
+@export var spring_preload := 5.0  ## extra rest length; holds the ride height
+@export_group("Drive")
+@export var drive_torque := 2600.0
+@export var brake_torque := 3200.0
+@export var max_wheel_spin := 50.0
+@export_group("Rocket")
+@export var rocket_thrust := 950.0
+@export var rocket_nose_lift := 900.0  ## low-mounted nozzles lift the nose a little
+@export var fuel_capacity := 100.0
+@export var fuel_burn_rate := 34.0
+@export_group("Air control")
+@export var air_torque := 2600.0
+@export var max_air_spin := 2.2
+@export_group("Landing")
+@export var min_air_time := 0.3
+@export var perfect_impact := 460.0
+@export var perfect_angle := 5.0
+@export var hard_impact := 640.0
+@export var hard_angle := 15.0
+@export var crash_impact := 900.0
+@export var crash_angle := 34.0
+@export var body_crash_speed := 260.0
+
+var chassis: RigidBody2D
+var wheels: Array[RigidBody2D] = []
+var passengers: BusPassengers
+var fuel := 0.0
+var rocket_firing := false
+var is_crashed := false
+var last_landing := {}
+## Scripted input (lab demos, replays): {"right": -1..1, "fire": bool}. Empty = player.
+var ai_input := {}
+
+var _spawn := Transform2D.IDENTITY
+var _spawn_vel := Vector2.ZERO
+var _spawn_spin := 0.0
+var _gravity := 700.0
+var _joints: Array[Joint2D] = []
+var _shell := {}
+var _flames: Array[Sprite2D] = []
+var _exhaust: CPUParticles2D
+var _rocket_sprite: Sprite2D
+var _rocket_light: PointLight2D
+var _rocket_fx: Node2D
+var _headlight: PointLight2D
+var _cabin_lights: Array[PointLight2D] = []
+var _sign_light: PointLight2D
+var _rocket_debris: RigidBody2D
+var _debris_burn := 0.0
+var _flame_clock := 0.0
+var _air_time := 0.0
+var _flip_time := 0.0
+var _prev_vel := Vector2.ZERO
+
+
+func setup(pos: Vector2, rot := 0.0, vel := Vector2.ZERO, spin := 0.0) -> Bus:
+	_spawn = Transform2D(rot, pos)
+	_spawn_vel = vel
+	_spawn_spin = spin
+	return self
+
+
+func _ready() -> void:
+	_gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
+	fuel = fuel_capacity
+	_build_chassis()
+	_build_skin()
+	_build_wheels()
+	_build_lights()
+	_prev_vel = _spawn_vel
+
+
+func get_speed() -> float:
+	return chassis.linear_velocity.dot(chassis.global_transform.x)
+
+
+func fuel_ratio() -> float:
+	return fuel / fuel_capacity
+
+
+# --- Build ------------------------------------------------------------------
+
+func _build_chassis() -> void:
+	chassis = RigidBody2D.new()
+	chassis.name = "Chassis"
+	chassis.mass = chassis_mass
+	chassis.center_of_mass_mode = RigidBody2D.CENTER_OF_MASS_MODE_CUSTOM
+	chassis.center_of_mass = Vector2(0, center_of_mass_y)
+	chassis.physics_material_override = _material(0.5, 0.0)
+	chassis.contact_monitor = true
+	chassis.max_contacts_reported = 4
+	chassis.continuous_cd = RigidBody2D.CCD_MODE_CAST_SHAPE
+	chassis.collision_layer = LAYER_BUS
+	chassis.collision_mask = LAYER_WORLD
+	chassis.transform = _spawn
+	chassis.linear_velocity = _spawn_vel
+	chassis.angular_velocity = _spawn_spin
+	var poly := CollisionPolygon2D.new()
+	poly.polygon = PackedVector2Array([
+		Vector2(-40, -21), Vector2(-38, -23), Vector2(38, -23), Vector2(40, -21),
+		Vector2(40, 18), Vector2(-40, 18),
+	])
+	chassis.add_child(poly)
+	add_child(chassis)
+
+
+func _build_skin() -> void:
+	var skin := Node2D.new()
+	skin.name = "Skin"
+	chassis.add_child(skin)
+	var frame := _sprite(TEX_FRAME, CANVAS_ORIGIN)
+	frame.light_mask = 3  # interior also catches the cabin lights
+	skin.add_child(frame)
+	passengers = BusPassengers.new()
+	skin.add_child(passengers)
+	for piece in SHELL:
+		var s := _sprite(piece[1], CANVAS_ORIGIN)
+		skin.add_child(s)
+		_shell[piece[0]] = s
+	_rocket_sprite = _sprite(TEX_ROCKET, ROCKET_POS)
+	skin.add_child(_rocket_sprite)
+
+	# Everything that burns lives under one node so it can follow the rocket
+	# when the rocket tears off.
+	_rocket_fx = Node2D.new()
+	skin.add_child(_rocket_fx)
+	for n in NOZZLES:
+		var f := Sprite2D.new()
+		f.texture = TEX_FLAME
+		f.hframes = 3
+		f.position = n + Vector2(-8, 0)
+		f.visible = false
+		_rocket_fx.add_child(f)
+		_flames.append(f)
+	_exhaust = CPUParticles2D.new()
+	_exhaust.position = Vector2(-58, 14)
+	_exhaust.emitting = false
+	_exhaust.amount = 70
+	_exhaust.lifetime = 0.45
+	_exhaust.local_coords = false
+	_exhaust.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	_exhaust.emission_rect_extents = Vector2(1, 4)
+	_exhaust.direction = Vector2.LEFT
+	_exhaust.spread = 9.0
+	_exhaust.gravity = Vector2(0, -60)
+	_exhaust.initial_velocity_min = 140.0
+	_exhaust.initial_velocity_max = 230.0
+	_exhaust.scale_amount_min = 1.0
+	_exhaust.scale_amount_max = 2.5
+	_exhaust.color_ramp = _gradient([
+		[0.0, Color(1, 1, 0.85)], [0.2, Color(1, 0.8, 0.3)], [0.45, Color(1, 0.35, 0.15)],
+		[0.7, Color(0.45, 0.35, 0.5, 0.7)], [1.0, Color(0.3, 0.25, 0.35, 0)],
+	])
+	_rocket_fx.add_child(_exhaust)
+	_rocket_light = _light(TEX_RADIAL, Vector2(-68, 14), Color(1, 0.55, 0.2), 1.5, 1.8)
+	_rocket_light.enabled = false
+	_rocket_fx.add_child(_rocket_light)
+
+
+func _build_wheels() -> void:
+	for x in WHEEL_X:
+		var w := RigidBody2D.new()
+		w.name = "Wheel"
+		w.mass = 0.15
+		w.physics_material_override = _material(1.2, 0.05)
+		w.contact_monitor = true
+		w.max_contacts_reported = 2
+		w.continuous_cd = RigidBody2D.CCD_MODE_CAST_SHAPE
+		w.collision_layer = LAYER_BUS
+		w.collision_mask = LAYER_WORLD
+		w.position = _spawn * Vector2(x, WHEEL_REST_Y)
+		w.linear_velocity = _spawn_vel
+		var shape := CollisionShape2D.new()
+		var circle := CircleShape2D.new()
+		circle.radius = WHEEL_RADIUS
+		shape.shape = circle
+		w.add_child(shape)
+		var s := Sprite2D.new()
+		s.texture = TEX_WHEEL
+		w.add_child(s)
+		add_child(w)
+		wheels.append(w)
+
+		# The wheel slides along a vertical groove (suspension travel)...
+		var groove := GrooveJoint2D.new()
+		groove.position = Vector2(x, GROOVE_TOP)
+		groove.length = GROOVE_LENGTH
+		groove.initial_offset = WHEEL_REST_Y - GROOVE_TOP
+		_attach(groove, w)
+		# ...and a damped spring pushes it back down.
+		var spring := DampedSpringJoint2D.new()
+		spring.position = Vector2(x, 0)
+		spring.length = WHEEL_REST_Y
+		spring.rest_length = WHEEL_REST_Y + spring_preload
+		spring.stiffness = spring_stiffness
+		spring.damping = spring_damping
+		_attach(spring, w)
+
+
+func _attach(joint: Joint2D, wheel: RigidBody2D) -> void:
+	chassis.add_child(joint)
+	joint.node_a = joint.get_path_to(chassis)
+	joint.node_b = joint.get_path_to(wheel)
+	_joints.append(joint)
+
+
+func _build_lights() -> void:
+	_headlight = _light(TEX_CONE, Vector2(39, 16), Color(1, 0.95, 0.75), 1.4, 1.0)
+	_headlight.offset = Vector2(64, 0)
+	chassis.add_child(_headlight)
+	chassis.add_child(_light(TEX_RADIAL, Vector2(39, 16), Color(1, 0.95, 0.8), 1.0, 0.3))
+	chassis.add_child(_light(TEX_RADIAL, Vector2(-40, 15), Color(1, 0.15, 0.1), 0.9, 0.4))
+	for y in [-11.0, 9.0]:
+		var cabin := _light(TEX_RADIAL, Vector2(0, y), Color(1, 0.82, 0.55), 1.3, 1.7)
+		cabin.range_item_cull_mask = 2  # only the interior + riders
+		chassis.add_child(cabin)
+		_cabin_lights.append(cabin)
+	_sign_light = _light(TEX_RADIAL, Vector2(0, -26), Color(1, 0.3, 0.7), 0.9, 0.9)
+	chassis.add_child(_sign_light)
+
+
+# --- Simulation -------------------------------------------------------------
+
+func _physics_process(delta: float) -> void:
+	if is_crashed:
+		_burn_loose_rocket(delta)
+		return
+	var right: float = ai_input.get("right", 0.0) if not ai_input.is_empty() \
+			else Input.get_axis("move_left", "move_right")
+	var fire: bool = ai_input.get("fire", false) if not ai_input.is_empty() \
+			else Input.is_action_pressed("rocket")
+
+	var wheel_contacts := 0
+	for w in wheels:
+		if w.get_contact_count() > 0:
+			wheel_contacts += 1
+	var body_contact := chassis.get_contact_count() > 0
+
+	if wheel_contacts > 0:
+		_drive(right)
+	else:
+		_air_control(right)
+	_rocket(fire and fuel > 0.0, delta)
+	_check_landing(wheel_contacts, body_contact, delta)
+	if is_crashed:
+		return
+
+	var accel := (chassis.linear_velocity - _prev_vel) / delta
+	var proper := (accel - Vector2(0, _gravity)).rotated(-chassis.rotation)
+	passengers.update_sway(proper, _gravity, delta)
+	if wheel_contacts == 0:
+		passengers.on_airborne(_air_time, rocket_firing)
+	_prev_vel = chassis.linear_velocity
+
+
+func _drive(right: float) -> void:
+	var speed := get_speed()
+	for w in wheels:
+		if right > 0.0:
+			if w.angular_velocity < max_wheel_spin:
+				w.apply_torque(drive_torque * right)
+		elif right < 0.0:
+			if speed > 25.0:
+				w.apply_torque(-brake_torque * signf(w.angular_velocity))
+			elif w.angular_velocity > -max_wheel_spin * 0.4:
+				w.apply_torque(drive_torque * right * 0.6)
+
+
+func _air_control(right: float) -> void:
+	# Right = nose down (clockwise), left = nose up.
+	if right != 0.0 and chassis.angular_velocity * signf(right) < max_air_spin:
+		chassis.apply_torque(air_torque * right)
+
+
+func _rocket(on: bool, delta: float) -> void:
+	if on:
+		# Thrust through the whole rig's centre of mass (chassis + wheels). Pushing
+		# only the chassis COM lets the dangling wheels drag the nose down.
+		chassis.apply_force(chassis.global_transform.x * rocket_thrust, _rig_center() - chassis.global_position)
+		chassis.apply_torque(-rocket_nose_lift)
+		fuel = maxf(0.0, fuel - fuel_burn_rate * delta)
+	if on != rocket_firing:
+		rocket_firing = on
+		_set_flames(on)
+	_animate_flames(delta)
+
+
+func _rig_center() -> Vector2:
+	var total := chassis.mass
+	var sum := chassis.to_global(chassis.center_of_mass) * chassis.mass
+	for w in wheels:
+		total += w.mass
+		sum += w.global_position * w.mass
+	return sum / total
+
+
+func _check_landing(wheel_contacts: int, body_contact: bool, delta: float) -> void:
+	if body_contact:
+		var upright := absf(wrapf(chassis.rotation, -PI, PI)) < deg_to_rad(110.0)
+		_flip_time = 0.0 if upright else _flip_time + delta
+		if _flip_time > 0.4:
+			_crash("FLIPPED IT")
+			return
+		# Slamming the body into something while driving (airborne hits are graded below).
+		var driving := _air_time < min_air_time
+		if driving and (_prev_vel - chassis.linear_velocity).length() > body_crash_speed * 2.0:
+			_crash("HEAD-ON")
+			return
+	if wheel_contacts == 0 and not body_contact:
+		_air_time += delta
+		return
+	if _air_time >= min_air_time:
+		_touchdown(wheel_contacts == 0)
+	_air_time = 0.0
+
+
+func _touchdown(body_first: bool) -> void:
+	var normal := _ground_normal()
+	var impact := maxf(0.0, _prev_vel.dot(-normal))
+	var angle := absf(rad_to_deg(angle_difference(normal.angle() + PI / 2, chassis.rotation)))
+	last_landing = {"impact": impact, "angle": angle, "grade": ""}
+	if angle >= crash_angle:
+		_crash("TORSION FAILURE")
+	elif body_first and (impact > body_crash_speed or angle > crash_angle * 0.5):
+		_crash("BELLY FLOP")
+	elif impact >= crash_impact:
+		_crash("TOO HARD!")
+	if is_crashed:
+		return
+	var grade := "good"
+	if impact >= hard_impact or angle >= hard_angle:
+		grade = "hard"
+	elif impact < perfect_impact and angle < perfect_angle:
+		grade = "perfect"
+	last_landing.grade = grade
+	passengers.react(grade)
+	_announce(grade)
+	landed.emit(grade, impact, angle)
+
+
+func _ground_normal() -> Vector2:
+	var from := chassis.global_position
+	var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0, 140), LAYER_WORLD)
+	var hit := get_world_2d().direct_space_state.intersect_ray(q)
+	return hit.normal if hit else Vector2.UP
+
+
+func _announce(grade: String) -> void:
+	var at := chassis.global_position + Vector2(0, -52)
+	match grade:
+		"perfect":
+			Fx.float_text(at, "PERFECT!!", Color.WHITE, 16, true, 1.7)
+		"good":
+			Fx.float_text(at, ["NICE LANDING!", "SMOOTH!", "BUS-TASTIC!"].pick_random(),
+					Color("#7dff6a"), 16)
+		"hard":
+			Fx.float_text(at, "HARD LANDING", Color("#ff9a2e"), 16)
+			Fx.shake(3.0)
+
+
+# --- Crash / break apart ----------------------------------------------------
+
+func _crash(reason: String) -> void:
+	if is_crashed:
+		return
+	is_crashed = true
+	last_landing.grade = "crash"
+	var at := chassis.global_position + Vector2(0, -52)
+	Fx.float_text(at, "WRECKED!", Color("#ff3b4e"), 16, false, 2.2)
+	Fx.float_text(at + Vector2(0, 18), reason, Color("#ffd23a"), 8, false, 2.2)
+	Fx.shake(9.0)
+	_break_apart()
+	crashed.emit(reason)
+
+
+func _break_apart() -> void:
+	var xf := chassis.global_transform
+	var vel := chassis.linear_velocity
+	for j in _joints:
+		j.queue_free()
+	_joints.clear()
+
+	for piece in SHELL:
+		var rect: Rect2 = piece[2]
+		var local := Rect2(rect.position + BODY_ORIGIN, rect.size)
+		var body := _debris(piece[1], CANVAS_ORIGIN, local, 0.25, xf)
+		var outward := local.get_center().normalized()
+		body.linear_velocity = vel * 0.8 + outward * randf_range(70, 150) \
+				+ Vector2(randf_range(-60, 60), randf_range(-260, -120))
+		body.angular_velocity = randf_range(-6.0, 6.0)
+		_shell[piece[0]].hide()
+		if piece[0] == "sign":
+			_sign_light.reparent(body)
+
+	_rocket_debris = _debris(TEX_ROCKET, ROCKET_POS, Rect2(ROCKET_POS, Vector2(14, 14)), 0.2, xf)
+	_rocket_debris.linear_velocity = vel + Vector2(randf_range(-80, 20), randf_range(-220, -140))
+	_rocket_debris.angular_velocity = randf_range(-9.0, 9.0)
+	_rocket_sprite.hide()
+	_rocket_fx.reparent(_rocket_debris)
+	_debris_burn = 1.6
+	_set_flames(true)
+
+	for i in wheels.size():
+		var w := wheels[i]
+		w.linear_velocity += Vector2(randf_range(-80, 80), randf_range(-200, -90))
+		w.angular_velocity += randf_range(-25.0, 25.0)
+		var axle_at := Rect2(Vector2(WHEEL_X[i] - 6, 19), Vector2(12, 3))
+		var axle := _debris(TEX_AXLE, axle_at.position, axle_at, 0.1, xf)
+		axle.linear_velocity = vel * 0.5 + Vector2(randf_range(-60, 60), -150)
+		axle.angular_velocity = randf_range(-12.0, 12.0)
+
+	passengers.eject(self, vel)
+	_spark_burst(xf * Vector2(0, 18))
+	var tw := create_tween()
+	for i in 3:  # lights die with a flicker
+		tw.tween_callback(_set_bus_lights.bind(false)).set_delay(0.06)
+		tw.tween_callback(_set_bus_lights.bind(true)).set_delay(0.08)
+	tw.tween_callback(_set_bus_lights.bind(false)).set_delay(0.1)
+
+
+func _burn_loose_rocket(delta: float) -> void:
+	if _debris_burn <= 0.0 or not is_instance_valid(_rocket_debris):
+		return
+	_debris_burn -= delta
+	_rocket_debris.apply_central_force(_rocket_debris.global_transform.x * 260.0)
+	_rocket_debris.apply_torque(randf_range(-900.0, 900.0))
+	_animate_flames(delta)
+	if _debris_burn <= 0.0:
+		_set_flames(false)
+
+
+func _set_bus_lights(on: bool) -> void:
+	_headlight.enabled = on
+	for c in _cabin_lights:
+		c.enabled = on
+
+
+func _spark_burst(at: Vector2) -> void:
+	var p := CPUParticles2D.new()
+	p.position = at
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = 48
+	p.lifetime = 0.7
+	p.direction = Vector2.UP
+	p.spread = 80.0
+	p.gravity = Vector2(0, 600)
+	p.initial_velocity_min = 90.0
+	p.initial_velocity_max = 300.0
+	p.scale_amount_min = 1.0
+	p.scale_amount_max = 2.0
+	p.color_ramp = _gradient([
+		[0.0, Color(1, 1, 0.8)], [0.4, Color(1, 0.7, 0.2)], [1.0, Color(1, 0.2, 0.1, 0)],
+	])
+	add_child(p)
+	p.emitting = true
+	var flash := _light(TEX_RADIAL, at, Color(1, 0.8, 0.5), 3.0, 3.0)
+	add_child(flash)
+	var tw := create_tween()
+	tw.tween_property(flash, "energy", 0.0, 0.4)
+	tw.tween_callback(flash.queue_free)
+	get_tree().create_timer(1.2).timeout.connect(p.queue_free)
+
+
+# --- Helpers ----------------------------------------------------------------
+
+func _set_flames(on: bool) -> void:
+	for f in _flames:
+		f.visible = on
+	_exhaust.emitting = on
+	_rocket_light.enabled = on
+
+
+func _animate_flames(delta: float) -> void:
+	if not _flames[0].visible:
+		return
+	_flame_clock += delta
+	if _flame_clock >= 0.05:
+		_flame_clock = 0.0
+		for f in _flames:
+			f.frame = randi() % 3
+			f.scale.x = randf_range(0.85, 1.2)
+		_rocket_light.energy = randf_range(1.2, 1.9)
+
+
+func _debris(tex: Texture2D, sprite_pos: Vector2, shape_rect: Rect2, mass: float,
+		xf: Transform2D) -> RigidBody2D:
+	var body := RigidBody2D.new()
+	body.mass = mass
+	body.collision_layer = LAYER_DEBRIS
+	body.collision_mask = LAYER_WORLD
+	body.physics_material_override = _material(0.8, 0.15)
+	body.transform = xf
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = shape_rect.size
+	shape.shape = rect
+	shape.position = shape_rect.get_center()
+	body.add_child(shape)
+	body.add_child(_sprite(tex, sprite_pos))
+	add_child(body)
+	return body
+
+
+static func _sprite(tex: Texture2D, pos: Vector2) -> Sprite2D:
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.centered = false
+	s.position = pos
+	return s
+
+
+static func _light(tex: Texture2D, pos: Vector2, color: Color, energy: float,
+		tex_scale: float) -> PointLight2D:
+	var l := PointLight2D.new()
+	l.texture = tex
+	l.position = pos
+	l.color = color
+	l.energy = energy
+	l.texture_scale = tex_scale
+	return l
+
+
+static func _material(friction: float, bounce: float) -> PhysicsMaterial:
+	var m := PhysicsMaterial.new()
+	m.friction = friction
+	m.bounce = bounce
+	return m
+
+
+static func _gradient(stops: Array) -> Gradient:
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array(stops.map(func(s): return s[0]))
+	g.colors = PackedColorArray(stops.map(func(s): return s[1]))
+	return g

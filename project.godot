@@ -1,0 +1,36 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="Rocket Bus"
+run/main_scene="res://scenes/bus_lab.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+Controls="*res://scripts/autoload/controls.gd"
+Fx="*res://scripts/autoload/fx.gd"
+
+[display]
+
+window/size/viewport_width=480
+window/size/viewport_height=270
+window/size/window_width_override=1440
+window/size/window_height_override=810
+window/stretch/mode="viewport"
+window/stretch/scale_mode="integer"
+
+[physics]
+
+common/physics_ticks_per_second=120
+2d/default_gravity=700.0
+2d/default_linear_damp=0.0
+2d/default_angular_damp=0.4
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.1, 0.06, 0.16, 1)

@@ -1,0 +1,20 @@
+extends Node
+## Registers the game's input actions so every scene can use them by name.
+
+const BINDINGS := {
+	"move_right": [KEY_D, KEY_RIGHT],  # throttle on the ground, nose-down in the air
+	"move_left": [KEY_A, KEY_LEFT],  # brake/reverse on the ground, nose-up in the air
+	"rocket": [KEY_SPACE],
+	"reset": [KEY_R],
+}
+
+
+func _enter_tree() -> void:
+	for action in BINDINGS:
+		if InputMap.has_action(action):
+			continue
+		InputMap.add_action(action)
+		for key in BINDINGS[action]:
+			var ev := InputEventKey.new()
+			ev.physical_keycode = key
+			InputMap.action_add_event(action, ev)
