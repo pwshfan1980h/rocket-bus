@@ -12,6 +12,9 @@ var _skid_cd := 0.0
 var _sputter_cd := 0.0
 var _low_fuel_warned := false
 var _was_firing := false
+var _groan_cd := 0.0
+var _rattle_cd := 0.0
+var _prev_spin := 0.0
 
 
 func _init(owner_bus: Bus) -> void:
@@ -33,6 +36,8 @@ func _physics_process(delta: float) -> void:
 	if bus.is_crashed or bus.chassis == null:
 		return
 	_creak_cd -= delta
+	_groan_cd -= delta
+	_rattle_cd -= delta
 	_skid_cd -= delta
 	_sputter_cd -= delta
 
@@ -63,6 +68,15 @@ func _physics_process(delta: float) -> void:
 	var wind_target := linear_to_db(clampf(speed / 700.0, 0.0001, 1.0)) - 4.0 if bus.airborne else -60.0
 	_wind.volume_db = move_toward(_wind.volume_db, wind_target, 80.0 * delta)
 
+	# The old frame groans when it twists: sudden changes in pitch, or one axle
+	# being shoved up harder than the other.
+	var spin_change := absf(bus.chassis.angular_velocity - _prev_spin) / delta
+	_prev_spin = bus.chassis.angular_velocity
+	var twist := absf(_prev_travel[0] - _prev_travel[1])
+	if _groan_cd <= 0.0 and (spin_change > 14.0 or (twist > 7.0 and not bus.airborne)):
+		_groan_cd = randf_range(0.7, 1.4)
+		Audio.play(["creak_a", "creak_b", "creak_c"].pick_random(), -10.0, randf_range(0.85, 1.15))
+
 	# Suspension creaks when a wheel is shoved up into the body quickly.
 	for i in bus.wheels.size():
 		var travel := bus.chassis.to_local(bus.wheels[i].global_position).y
@@ -71,6 +85,9 @@ func _physics_process(delta: float) -> void:
 		if v > 60.0 and _creak_cd <= 0.0 and not bus.airborne:
 			_creak_cd = 0.3
 			Audio.play("spring_creak", linear_to_db(clampf(v / 250.0, 0.1, 1.0)) - 8.0, 1.0, 0.15)
+			if speed > 150.0 and _rattle_cd <= 0.0:  # loose panels rattle over bumps
+				_rattle_cd = 0.5
+				Audio.play("rattle", -14.0, randf_range(0.9, 1.2))
 
 	if bus.throttle < 0.0 and bus.get_speed() > 120.0 and not bus.airborne and _skid_cd <= 0.0:
 		_skid_cd = 0.6
@@ -98,6 +115,7 @@ func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 			Audio.play("jingle_good", -6.0)
 		"hard":
 			Audio.play("land_hard", 0.0)
+			Audio.play("creak_b", -6.0)
 			Audio.play("sting_hard", -6.0)
 			Audio.play("groan", -6.0)
 

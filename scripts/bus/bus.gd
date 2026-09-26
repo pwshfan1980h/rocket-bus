@@ -4,30 +4,49 @@ extends Node2D
 ##
 ##   Chassis (RigidBody2D) --GrooveJoint2D + DampedSpringJoint2D--> Wheel x2
 ##
-## The shell (sign, roof, upper/lower panels) and the rocket are sprites on the
-## chassis until a crash; then they're swapped for loose debris bodies, the
-## joints are cut and the passengers are thrown out, leaving the skeleton frame.
+## The rigid core frame (lower deck floor, rail, pillars) is the chassis itself.
+## Everything else - upper-deck cage, seats, engine, panels, door, hood, bumpers,
+## fenders, sign, rocket - is a sprite on the chassis until a crash; then each is
+## swapped for a loose debris body, the glass shatters, the joints are cut and the
+## passengers are thrown out, leaving just the core.
 ## Call setup() before adding the bus to the tree.
 
 signal landed(grade: String, impact: float, angle_deg: float)
 signal crashed(reason: String)
 signal hazard_hit(kind: String)
 
-const TEX_FRAME := preload("res://assets/sprites/bus_frame.png")
+const TEX_CORE := preload("res://assets/sprites/bus_core.png")
+const TEX_GLASS := preload("res://assets/sprites/bus_glass.png")
 const TEX_WHEEL := preload("res://assets/sprites/wheel.png")
 const TEX_ROCKET := preload("res://assets/sprites/rocket.png")
 const TEX_FLAME := preload("res://assets/sprites/flame.png")
 const TEX_AXLE := preload("res://assets/sprites/axle.png")
 const TEX_RADIAL := preload("res://assets/sprites/light_radial.png")
 const TEX_CONE := preload("res://assets/sprites/light_cone.png")
-const SHELL := [  # piece, texture, rect in body px (x 0..79 cabin, 80..99 hood; y 0..45 roof->skirt)
-	["sign", preload("res://assets/sprites/bus_sign.png"), Rect2(26, -7, 28, 7)],
-	["roof", preload("res://assets/sprites/bus_roof.png"), Rect2(0, 0, 80, 4)],
-	["upper", preload("res://assets/sprites/bus_upper.png"), Rect2(0, 4, 80, 18)],
-	["lower", preload("res://assets/sprites/bus_lower.png"), Rect2(0, 22, 80, 24)],
-	["hood", preload("res://assets/sprites/bus_hood.png"), Rect2(80, 26, 20, 20)],
-	["fender_rear", preload("res://assets/sprites/bus_fender_rear.png"), Rect2(4, 34, 29, 12)],
-	["fender_front", preload("res://assets/sprites/bus_fender_front.png"), Rect2(60, 34, 29, 12)],
+# Breakable pieces: name, texture, rect in body px (x 0..79 cabin, 80..99 hood; y 0..45 roof->skirt), mass.
+const INTERIOR := [  # drawn behind the passengers
+	["cage", preload("res://assets/sprites/bus_cage.png"), Rect2(0, 0, 80, 24), 0.3],
+	["seats", preload("res://assets/sprites/bus_seats.png"), Rect2(4, 10, 74, 28), 0.15],
+	["engine", preload("res://assets/sprites/bus_engine.png"), Rect2(81, 28, 16, 12), 0.35],
+]
+const SHELL := [  # drawn over the passengers
+	["upper_r", preload("res://assets/sprites/bus_upper_r.png"), Rect2(0, 4, 40, 18), 0.15],
+	["upper_f", preload("res://assets/sprites/bus_upper_f.png"), Rect2(40, 4, 40, 18), 0.15],
+	["lower_r", preload("res://assets/sprites/bus_lower_r.png"), Rect2(0, 22, 43, 20), 0.18],
+	["door", preload("res://assets/sprites/bus_door.png"), Rect2(43, 26, 10, 16), 0.06],
+	["lower_f", preload("res://assets/sprites/bus_lower_f.png"), Rect2(53, 22, 27, 20), 0.12],
+	["hood", preload("res://assets/sprites/bus_hood.png"), Rect2(80, 26, 18, 16), 0.15],
+	["bumper_f", preload("res://assets/sprites/bus_bumper_f.png"), Rect2(78, 42, 22, 4), 0.08],
+	["bumper_r", preload("res://assets/sprites/bus_bumper_r.png"), Rect2(0, 42, 5, 4), 0.03],
+	["fender_rear", preload("res://assets/sprites/bus_fender_rear.png"), Rect2(4, 34, 29, 12), 0.06],
+	["fender_front", preload("res://assets/sprites/bus_fender_front.png"), Rect2(60, 34, 29, 12), 0.06],
+	["roof_r", preload("res://assets/sprites/bus_roof_r.png"), Rect2(0, 0, 40, 4), 0.08],
+	["roof_f", preload("res://assets/sprites/bus_roof_f.png"), Rect2(40, 0, 40, 4), 0.08],
+	["sign", preload("res://assets/sprites/bus_sign.png"), Rect2(26, -7, 28, 7), 0.05],
+]
+# Window rects (body px) the glass shatters from.
+const WINDOWS: Array[Rect2] = [
+	Rect2(4, 7, 68, 10), Rect2(74, 7, 4, 10), Rect2(4, 27, 38, 7), Rect2(44, 27, 8, 15), Rect2(54, 27, 24, 7),
 ]
 
 const BODY_ORIGIN := Vector2(-40, -23)  # body px (0,0) in chassis space
@@ -37,8 +56,10 @@ const WHEEL_RADIUS := 9.0
 const GROOVE_TOP := 12.0
 const GROOVE_LENGTH := 16.0
 const WHEEL_REST_Y := 21.0
-const ROCKET_POS := Vector2(-54, 7)
-const NOZZLES: Array[Vector2] = [Vector2(-54, 10.5), Vector2(-54, 17.5)]
+const ROCKET_POS := Vector2(-64, 1)  # top-left of the 24x20 booster sprite
+const ROCKET_SIZE := Vector2(24, 20)
+const NOZZLES: Array[Vector2] = [Vector2(-64, 6.5), Vector2(-64, 15.5)]
+const FLAME_SCALE := 1.7
 const LAYER_WORLD := 1
 const LAYER_BUS := 2
 const LAYER_DEBRIS := 4
@@ -110,6 +131,8 @@ var _flip_time := 0.0
 var _prev_vel := Vector2.ZERO
 var _since_landing := 99.0
 var _skin: Node2D
+var _glass: Sprite2D
+var _smoke: CPUParticles2D
 
 
 func setup(pos: Vector2, rot := 0.0, vel := Vector2.ZERO, spin := 0.0) -> Bus:
@@ -170,11 +193,18 @@ func _build_skin() -> void:
 	_skin = skin
 	skin.name = "Skin"
 	chassis.add_child(skin)
-	var frame := _sprite(TEX_FRAME, CANVAS_ORIGIN)
-	frame.light_mask = 3  # interior also catches the cabin lights
-	skin.add_child(frame)
+	var core := _sprite(TEX_CORE, CANVAS_ORIGIN)
+	core.light_mask = 3  # interior also catches the cabin lights
+	skin.add_child(core)
+	for piece in INTERIOR:
+		var s := _sprite(piece[1], CANVAS_ORIGIN)
+		s.light_mask = 3
+		skin.add_child(s)
+		_shell[piece[0]] = s
 	passengers = BusPassengers.new()
 	skin.add_child(passengers)
+	_glass = _sprite(TEX_GLASS, CANVAS_ORIGIN)
+	skin.add_child(_glass)
 	for piece in SHELL:
 		var s := _sprite(piece[1], CANVAS_ORIGIN)
 		skin.add_child(s)
@@ -190,31 +220,56 @@ func _build_skin() -> void:
 		var f := Sprite2D.new()
 		f.texture = TEX_FLAME
 		f.hframes = 3
-		f.position = n + Vector2(-8, 0)
+		f.position = n + Vector2(-8 * FLAME_SCALE, 0)
+		f.scale = Vector2(FLAME_SCALE, FLAME_SCALE)
 		f.visible = false
 		_rocket_fx.add_child(f)
 		_flames.append(f)
 	_exhaust = CPUParticles2D.new()
-	_exhaust.position = Vector2(-58, 14)
+	_exhaust.position = Vector2(-70, 11)
 	_exhaust.emitting = false
-	_exhaust.amount = 70
+	_exhaust.amount = 130
 	_exhaust.lifetime = 0.45
 	_exhaust.local_coords = false
 	_exhaust.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
-	_exhaust.emission_rect_extents = Vector2(1, 4)
+	_exhaust.emission_rect_extents = Vector2(2, 7)
 	_exhaust.direction = Vector2.LEFT
 	_exhaust.spread = 9.0
 	_exhaust.gravity = Vector2(0, -60)
 	_exhaust.initial_velocity_min = 140.0
 	_exhaust.initial_velocity_max = 230.0
-	_exhaust.scale_amount_min = 1.0
-	_exhaust.scale_amount_max = 2.5
+	_exhaust.scale_amount_min = 1.5
+	_exhaust.scale_amount_max = 3.5
 	_exhaust.color_ramp = _gradient([
 		[0.0, Color(1, 1, 0.85)], [0.2, Color(1, 0.8, 0.3)], [0.45, Color(1, 0.35, 0.15)],
 		[0.7, Color(0.45, 0.35, 0.5, 0.7)], [1.0, Color(0.3, 0.25, 0.35, 0)],
 	])
 	_rocket_fx.add_child(_exhaust)
-	_rocket_light = _light(TEX_RADIAL, Vector2(-68, 14), Color(1, 0.55, 0.2), 1.5, 1.8)
+	# A lingering smoke trail behind the boosters.
+	_smoke = CPUParticles2D.new()
+	_smoke.position = Vector2(-80, 11)
+	_smoke.emitting = false
+	_smoke.amount = 60
+	_smoke.lifetime = 1.8
+	_smoke.local_coords = false
+	_smoke.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	_smoke.emission_rect_extents = Vector2(3, 6)
+	_smoke.direction = Vector2.LEFT
+	_smoke.spread = 25.0
+	_smoke.gravity = Vector2(0, -25)
+	_smoke.initial_velocity_min = 30.0
+	_smoke.initial_velocity_max = 70.0
+	_smoke.damping_min = 20.0
+	_smoke.damping_max = 40.0
+	_smoke.scale_amount_min = 3.0
+	_smoke.scale_amount_max = 6.0
+	_smoke.scale_amount_curve = _grow_curve()
+	_smoke.color_ramp = _gradient([
+		[0.0, Color(0.9, 0.86, 0.86, 0.0)], [0.08, Color(0.88, 0.84, 0.86, 0.8)],
+		[0.6, Color(0.6, 0.56, 0.62, 0.5)], [1.0, Color(0.45, 0.42, 0.48, 0.0)],
+	])
+	_rocket_fx.add_child(_smoke)
+	_rocket_light = _light(TEX_RADIAL, Vector2(-86, 11), Color(1, 0.55, 0.2), 1.8, 2.6)
 	_rocket_light.enabled = false
 	_rocket_fx.add_child(_rocket_light)
 
@@ -563,19 +618,20 @@ func _break_apart() -> void:
 		j.queue_free()
 	_joints.clear()
 
-	for piece in SHELL:
+	for piece in SHELL + INTERIOR:
 		var rect: Rect2 = piece[2]
 		var local := Rect2(rect.position + BODY_ORIGIN, rect.size)
-		var body := _debris(piece[1], CANVAS_ORIGIN, local, 0.25, xf)
+		var body := _debris(piece[1], CANVAS_ORIGIN, local, piece[3], xf)
 		var outward := local.get_center().normalized()
-		body.linear_velocity = vel * 0.8 + outward * randf_range(70, 150) \
-				+ Vector2(randf_range(-60, 60), randf_range(-260, -120))
-		body.angular_velocity = randf_range(-6.0, 6.0)
+		body.linear_velocity = vel * 0.8 + outward * randf_range(70, 170) \
+				+ Vector2(randf_range(-70, 70), randf_range(-280, -110))
+		body.angular_velocity = randf_range(-8.0, 8.0)
 		_shell[piece[0]].hide()
 		if piece[0] == "sign":
 			_sign_light.reparent(body)
+	_shatter_glass(xf, vel)
 
-	_rocket_debris = _debris(TEX_ROCKET, ROCKET_POS, Rect2(ROCKET_POS, Vector2(14, 14)), 0.2, xf)
+	_rocket_debris = _debris(TEX_ROCKET, ROCKET_POS, Rect2(ROCKET_POS, ROCKET_SIZE), 0.25, xf)
 	_rocket_debris.linear_velocity = vel + Vector2(randf_range(-80, 20), randf_range(-220, -140))
 	_rocket_debris.angular_velocity = randf_range(-9.0, 9.0)
 	_rocket_sprite.hide()
@@ -599,6 +655,34 @@ func _break_apart() -> void:
 		tw.tween_callback(_set_bus_lights.bind(false)).set_delay(0.06)
 		tw.tween_callback(_set_bus_lights.bind(true)).set_delay(0.08)
 	tw.tween_callback(_set_bus_lights.bind(false)).set_delay(0.1)
+
+
+func _shatter_glass(xf: Transform2D, vel: Vector2) -> void:
+	_glass.hide()
+	for r in WINDOWS:
+		var p := CPUParticles2D.new()
+		p.position = xf * (r.get_center() + BODY_ORIGIN)
+		p.one_shot = true
+		p.explosiveness = 0.95
+		p.amount = int(clampf(r.get_area() / 6.0, 8, 60))
+		p.lifetime = 1.1
+		p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+		p.emission_rect_extents = r.size / 2
+		p.direction = Vector2(vel.normalized().x, -1)
+		p.spread = 70.0
+		p.gravity = Vector2(0, 700)
+		p.initial_velocity_min = 60.0
+		p.initial_velocity_max = 220.0
+		p.angular_velocity_min = -400
+		p.angular_velocity_max = 400
+		p.scale_amount_min = 1.0
+		p.scale_amount_max = 2.0
+		p.color_ramp = _gradient([[0.0, Color(0.85, 0.97, 1.0)], [0.6, Color(0.5, 0.8, 0.9, 0.8)],
+				[1.0, Color(0.5, 0.8, 0.9, 0.0)]])
+		add_child(p)
+		p.emitting = true
+		get_tree().create_timer(1.5).timeout.connect(p.queue_free)
+	Audio.play("glass", -2.0)
 
 
 func _burn_loose_rocket(delta: float) -> void:
@@ -651,6 +735,7 @@ func _set_flames(on: bool) -> void:
 	for f in _flames:
 		f.visible = on
 	_exhaust.emitting = on
+	_smoke.emitting = on
 	_rocket_light.enabled = on
 
 
@@ -709,6 +794,13 @@ static func _material(friction: float, bounce: float) -> PhysicsMaterial:
 	m.friction = friction
 	m.bounce = bounce
 	return m
+
+
+static func _grow_curve() -> Curve:
+	var c := Curve.new()
+	c.add_point(Vector2(0, 0.4))
+	c.add_point(Vector2(1, 1))
+	return c
 
 
 static func _gradient(stops: Array) -> Gradient:

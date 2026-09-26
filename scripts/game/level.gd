@@ -2,6 +2,7 @@ extends Node2D
 ## Plays GameState.current_level: title card, countdown, the run, and the
 ## results or retry screen.
 ## User args: --level=N (start at N)  --bot (autopilot)  --botall (bot plays every level, prints a report)
+## (Always test at normal speed: raising time_scale enlarges physics steps and changes outcomes.)
 
 enum State { INTRO, PLAY, WON, FAILED }
 
@@ -43,9 +44,7 @@ func _ready() -> void:
 		if a.begins_with("--level=") and bot_report.is_empty():
 			GameState.current_level = int(a.substr(8))
 	_bot = "--bot" in _args or "--botall" in _args
-	_skip_intro = "--botall" in _args or "--fast" in _args
-	if _bot:
-		Engine.time_scale = 3.0 if "--fast" in _args else GameState.PACE
+	_skip_intro = "--botall" in _args
 	index = GameState.current_level
 	def = Levels.get_level(index)
 	world = World.new().build(def.biome, def.segments)
