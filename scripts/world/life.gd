@@ -44,6 +44,9 @@ var _flakes: Array[Dictionary] = []  # snow, ash, embers, motes, fireflies
 var _flap_cd := 0.0
 var _buzz: AudioStreamPlayer2D
 var _cam := Vector2.ZERO
+## Bigger animals: vultures, bats (flying) and snakes, goats, penguins, monkeys.
+var _critters: Array[Dictionary] = []
+var _critter_cd := 0.0
 
 
 func setup(t: Terrain, p: Props, glow_node: Node2D) -> Life:
@@ -86,6 +89,7 @@ func _ready() -> void:
 			for i in n:
 				_flakes.append({"kind": kind, "p": Vector2(_rng.randf_range(-VIEW.x, VIEW.x), _rng.randf_range(-VIEW.y, VIEW.y)),
 					"s": _rng.randf_range(0.5, 1.0), "ph": _rng.randf() * TAU})
+	_spawn_critters()
 	if "butterflies" in _kinds:
 		for i in 6:
 			_butterflies.append({"p": Vector2(_rng.randf_range(0, 600), -40), "v": Vector2.ZERO,
@@ -115,6 +119,7 @@ func _physics_process(delta: float) -> void:
 		_update_leaves(delta, bp)
 	_update_puffs(delta, grounded, bv)
 	_update_flakes(delta)
+	_update_critters(delta, bp, bv)
 	queue_redraw()
 	glow.queue_redraw()
 
@@ -349,9 +354,170 @@ func _update_flakes(delta: float) -> void:
 		f.p.y = fposmod(f.p.y + VIEW.y, VIEW.y * 2) - VIEW.y
 
 
+# --- Critters -------------------------------------------------------------------
+
+func _spawn_critters() -> void:
+	if "vultures" in _kinds:
+		for i in 3:
+			_critters.append({"kind": "vulture", "p": Vector2.ZERO, "ph": i * TAU / 3, "r": _rng.randf_range(70, 110)})
+	if "bats" in _kinds:
+		for i in 10:
+			_critters.append({"kind": "bat", "p": Vector2(_rng.randf_range(0, 800), -120), "v": Vector2(60, 0),
+				"ph": _rng.randf() * TAU})
+	if "monkeys" in _kinds:
+		for t in props.trees:
+			if _rng.randf() < 0.5:
+				_critters.append({"kind": "monkey", "p": t + Vector2(_rng.randf_range(-10, 10), -8), "state": "idle",
+					"v": Vector2.ZERO, "t": 0.0, "dir": 1.0})
+	var ground := {"snakes": "snake", "goats": "goat", "penguins": "penguin"}
+	for key in ground:
+		if not key in _kinds:
+			continue
+		var x := 250.0
+		while x < terrain.end_x - 200:
+			x += _rng.randf_range(260, 520)
+			var gy := terrain.ground_y(x)
+			if is_nan(gy):
+				continue
+			var n: int = _rng.randi_range(2, 4) if key == "penguins" else 1
+			for k in n:
+				_critters.append({"kind": ground[key], "p": Vector2(x + k * 9, gy), "state": "idle", "v": Vector2.ZERO,
+					"t": _rng.randf() * 3, "dir": -1.0 if _rng.randf() < 0.5 else 1.0, "alpha": 1.0})
+
+
+func _update_critters(delta: float, bp: Vector2, bv: Vector2) -> void:
+	_critter_cd -= delta
+	for c in _critters:
+		match c.kind:
+			"vulture":  # lazy circles above the bus
+				c.ph += delta * 0.6
+				c.p = _cam + Vector2(cos(c.ph) * c.r * 1.8, -150 + sin(c.ph) * c.r * 0.35)
+				if _critter_cd <= 0.0 and _rng.randf() < delta * 0.1:
+					_critter_cd = 4.0
+					Audio.play_at("vulture_caw", c.p, -10.0)
+			"bat":  # jittery swarm that scatters from the bus
+				c.ph += delta
+				var home: Vector2 = _cam + Vector2(sin(c.ph * 0.3) * 200, -130 + sin(c.ph * 0.7) * 30)
+				var acc: Vector2 = (home - c.p) * 1.5 + Vector2(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * 600
+				if c.p.distance_to(bp) < 120:
+					acc += (c.p - bp).normalized() * 900
+					if _critter_cd <= 0.0:
+						_critter_cd = 1.5
+						Audio.play_at("bat_squeak", c.p, -6.0)
+				c.v = (c.v + acc * delta).limit_length(170)
+				c.p += c.v * delta
+			"monkey":
+				_update_monkey(c, delta, bp)
+			_:
+				_update_ground_critter(c, delta, bp, bv)
+	_critters = _critters.filter(func(c): return c.get("alpha", 1.0) > 0.0)
+
+
+func _update_monkey(c: Dictionary, delta: float, bp: Vector2) -> void:
+	c.t += delta
+	if c.state == "idle" and absf(c.p.x - bp.x) < 140:
+		c.state = "leap"
+		c.dir = 1.0 if c.p.x >= bp.x else -1.0
+		c.v = Vector2(c.dir * _rng.randf_range(110, 170), _rng.randf_range(-220, -160))
+		Audio.play_at("monkey_screech", c.p, -4.0)
+		if _rng.randf() < 0.4 and is_instance_valid(bus):
+			bus.passengers.chatter(["MONKEY!", "IT TOOK MY BANANA!", "OOK OOK!"].pick_random(), "voice_happy")
+	elif c.state == "leap":
+		c.v.y += 420 * delta
+		c.p += c.v * delta
+		var gy := terrain.surface_y(c.p.x)
+		if c.v.y > 0 and not is_nan(gy) and c.p.y > gy:
+			c.p.y = gy
+			c.state = "run"
+	elif c.state == "run":
+		c.p.x += c.dir * 150 * delta
+		c.alpha = c.get("alpha", 1.0) - delta * 0.8
+		var gy := terrain.surface_y(c.p.x)
+		if not is_nan(gy):
+			c.p.y = gy
+
+
+func _update_ground_critter(c: Dictionary, delta: float, bp: Vector2, bv: Vector2) -> void:
+	if absf(c.p.x - _cam.x) > VIEW.x + 60 and c.state == "idle":
+		return
+	c.t += delta
+	var near := absf(c.p.x - bp.x) < (170 if c.kind == "goat" else 130) and absf(c.p.y - bp.y) < 90
+	if c.state == "idle" and near:
+		c.state = "flee"
+		c.t = 0.0
+		c.dir = 1.0 if c.p.x >= bp.x else -1.0
+		var sound: String = {"snake": "snake_hiss", "goat": "goat_bleat", "penguin": "penguin_squawk"}[c.kind]
+		Audio.play_at(sound, c.p, -6.0, 0.15)
+		if c.kind == "penguin" and _rng.randf() < 0.3 and is_instance_valid(bus):
+			bus.passengers.chatter(["PENGUINS!", "SO CUTE!", "LOOK AT 'EM GO!"].pick_random(), "voice_happy")
+	if c.state == "flee":
+		var speed: float = {"snake": 90.0, "goat": 170.0, "penguin": 190.0}[c.kind]
+		c.p.x += c.dir * speed * delta
+		var gy := terrain.surface_y(c.p.x)
+		if is_nan(gy):
+			c.alpha = 0.0
+			return
+		c.p.y = gy
+		if c.kind == "goat":  # bounding hops
+			c.p.y -= absf(sin(c.t * 9.0)) * 10.0
+		if c.t > 1.4:
+			c.alpha = c.get("alpha", 1.0) - delta * 1.5
+
+
+func _draw_critters() -> void:
+	for c in _critters:
+		if absf(c.p.x - _cam.x) > VIEW.x + 20:
+			continue
+		var p: Vector2 = c.p
+		var a: float = c.get("alpha", 1.0)
+		match c.kind:
+			"vulture":
+				var flap := sin(_time * 3.0 + c.ph) * 2.0
+				var col := Color("#2a1e24")
+				draw_line(p, p + Vector2(-8, -3 - flap), col, 2.0)
+				draw_line(p, p + Vector2(8, -3 - flap), col, 2.0)
+				draw_rect(Rect2(p.x - 2, p.y - 1, 4, 3), col)
+				draw_rect(Rect2(p.x + 2, p.y - 2, 2, 1), Color("#d8a0a0"))
+			"bat":
+				var flap := sin(_time * 30.0 + c.ph) * 2.0
+				draw_line(p, p + Vector2(-3, -flap), Color("#140a0e"), 1.0)
+				draw_line(p, p + Vector2(3, -flap), Color("#140a0e"), 1.0)
+				draw_rect(Rect2(p.x - 1, p.y - 1, 2, 2), Color("#140a0e"))
+			"monkey":
+				var col := Color(0.45, 0.28, 0.16, a)
+				draw_rect(Rect2(p.x - 2, p.y - 5, 4, 4), col)
+				draw_rect(Rect2(p.x - 2 + c.dir * 2, p.y - 8, 3, 3), col)
+				draw_rect(Rect2(p.x - 1 + c.dir * 2, p.y - 7, 2, 1), Color(0.9, 0.75, 0.6, a))
+				draw_arc(p + Vector2(-c.dir * 3, -3), 2.5, 0, PI * 1.5, 6, col, 1.0)
+			"snake":
+				var col := Color(0.55, 0.6, 0.2, a)
+				for k in 6:
+					var wave := sin(_time * 12.0 + k) * (1.5 if c.state == "flee" else 0.5)
+					draw_rect(Rect2(p.x - c.dir * k * 2, p.y - 2 + wave, 2, 2), col)
+				draw_rect(Rect2(p.x + c.dir * 2, p.y - 3, 2, 2), col.darkened(0.2))
+			"goat":
+				var col := Color(0.92, 0.9, 0.86, a)
+				draw_rect(Rect2(p.x - 4, p.y - 7, 8, 4), col)
+				draw_rect(Rect2(p.x + c.dir * 4 - 1, p.y - 10, 3, 3), col)
+				draw_line(Vector2(p.x + c.dir * 4, p.y - 10), Vector2(p.x + c.dir * 2, p.y - 12), Color(0.5, 0.45, 0.4, a), 1.0)
+				for lx in [-3, 2]:
+					draw_rect(Rect2(p.x + lx, p.y - 3, 1, 3), col.darkened(0.3))
+			"penguin":
+				if c.state == "flee":  # belly slide
+					draw_rect(Rect2(p.x - 4, p.y - 3, 8, 3), Color(0.1, 0.1, 0.14, a))
+					draw_rect(Rect2(p.x - 3, p.y - 1, 6, 1), Color(0.95, 0.95, 1, a))
+					draw_rect(Rect2(p.x + c.dir * 4, p.y - 2, 1, 1), Color(1, 0.6, 0.1, a))
+				else:
+					var waddle := sin(c.t * 6.0) * 0.5
+					draw_rect(Rect2(p.x - 2 + waddle, p.y - 8, 4, 8), Color(0.1, 0.1, 0.14, a))
+					draw_rect(Rect2(p.x - 1 + waddle, p.y - 6, 2, 5), Color(0.95, 0.95, 1, a))
+					draw_rect(Rect2(p.x + c.dir * 2 + waddle, p.y - 7, 1, 1), Color(1, 0.6, 0.1, a))
+
+
 # --- Drawing ----------------------------------------------------------------------
 
 func _draw() -> void:
+	_draw_critters()
 	var dust := Color(DUST_COLORS.get(_title, "#a0a0a0"))
 	for p in _puffs:
 		draw_circle(p.p, p.s, Color(dust, clampf(p.life, 0.0, 0.5)))

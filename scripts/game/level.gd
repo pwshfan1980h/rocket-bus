@@ -391,7 +391,7 @@ func _build_hud() -> void:
 	_label(layer, "%s %s" % [Levels.code(index), def.title], Vector2(8, 8), 8, Color("#ffcc26"), 2)
 	_hud.gaps = _label(layer, "GAPS 0/%d" % world.terrain.gaps.size(), Vector2(8, 20), 8, Color("#3cf0dc"), 2)
 	var minimap := Minimap.new().setup(world, bus)
-	minimap.position = Vector2(122, 5)
+	minimap.position = Vector2(138, 5)
 	layer.add_child(minimap)
 	_hud.time = _label(layer, "0.0", Vector2(0, 34), 8, Color.WHITE, 2)
 	_hud.time.size.x = 480
