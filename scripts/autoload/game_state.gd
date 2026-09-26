@@ -14,7 +14,7 @@ var music_on := true
 var sfx_on := true
 var gore_on := true
 var seen_intro := false
-## Last checkpoint reached this session: {level, x, fuel, ammo, clock, landings, cleared}.
+## Last checkpoint reached this session: {level, x, fuel, clock, landings, cleared}.
 var checkpoint := {}
 
 

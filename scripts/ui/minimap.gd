@@ -1,7 +1,7 @@
 class_name Minimap
 extends Control
 ## "Road ahead" strip for the HUD: the terrain profile from a little behind the bus
-## to far ahead, with gaps (coloured by kind), ramps, blockers, barrels, pickups,
+## to far ahead, with gaps (coloured by kind), ramps, fuel cans,
 ## the finish flag and the bus itself. Gives foresight at high speed.
 
 const W := 200.0
@@ -29,15 +29,6 @@ func setup(w: World, b: Bus) -> Minimap:
 
 func _process(_delta: float) -> void:
 	queue_redraw()
-
-
-## Red "!!" (or orange "!") warning marker above a hazard.
-func _bang(p: Vector2, count: int) -> void:
-	var col := Color("#ff3b4e") if count > 1 else Color("#ff9a2e")
-	for k in count:
-		var x := p.x - count + k * 3
-		draw_rect(Rect2(x, p.y - 10, 2, 5), col)
-		draw_rect(Rect2(x, p.y - 4, 2, 2), col)
 
 
 ## Little red jerry can for fuel.
@@ -84,21 +75,9 @@ func _draw() -> void:
 		if r.lip_x > x0 and r.lip_x < x0 + span:
 			var p: Vector2 = to_screen.call(r.lip_x, r.top_y)
 			draw_rect(Rect2(p.x - 1, p.y - 1, 2, 3), Color("#ffc828"))
-	for o in world.obstacles:
-		if is_instance_valid(o) and o.global_position.x > x0 and o.global_position.x < x0 + span:
-			var p: Vector2 = to_screen.call(o.global_position.x, o.global_position.y)
-			if o.is_blocker():
-				_bang(p, 2)  # "!!" = something you must shoot or shove
-			elif o.kind == "barrel":
-				_bang(p, 1)
 	for p0 in terrain.pickups:
 		if p0.x > x0 and p0.x < x0 + span:
 			_gas_can(to_screen.call(p0.x, p0.y + 30))
-	for p0 in terrain.ammo_spots:
-		if p0.x > x0 and p0.x < x0 + span:
-			var p: Vector2 = to_screen.call(p0.x, p0.y + 30)
-			draw_rect(Rect2(p.x - 2, p.y - 5, 5, 4), Color("#6a7a3a"))
-			draw_rect(Rect2(p.x - 1, p.y - 6, 3, 1), Color("#e8c060"))
 	if terrain.finish_x > x0 and terrain.finish_x < x0 + span:
 		var p: Vector2 = to_screen.call(terrain.finish_x, terrain.surface_y(terrain.finish_x))
 		draw_rect(Rect2(p.x, p.y - 8, 1, 8), Color.WHITE)

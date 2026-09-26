@@ -63,10 +63,6 @@ const FLAME_SCALE := 1.7
 const LAYER_WORLD := 1
 const LAYER_BUS := 2
 const LAYER_DEBRIS := 4
-const LAYER_BLOCKERS := 16  # boulders, logs, barricades (see Obstacle)
-const TEX_CANNON := preload("res://assets/sprites/cannon.png")
-const CANNON_POS := Vector2(43, 8)  # top-left of the 16x8 cannon sprite
-const MUZZLE := Vector2(60, 11.5)
 
 @export_group("Body")
 @export var chassis_mass := 1.0
@@ -84,9 +80,6 @@ const MUZZLE := Vector2(60, 11.5)
 @export var rocket_nose_lift := 900.0  ## low-mounted nozzles lift the nose a little
 @export var fuel_capacity := 100.0
 @export var fuel_burn_rate := 24.0  ## ~40% more burn time than the original 34
-@export_group("Cannon")
-@export var cannon_cooldown := 0.35
-@export var cannon_recoil := 35.0
 @export_group("Air control")
 @export var air_torque := 3600.0
 @export var max_air_spin := 2.2
@@ -111,7 +104,6 @@ var airborne := false
 var throttle := 0.0  ## current -1..1 drive input
 var wants_fire := false
 var controls_enabled := true
-var ammo := 0
 ## Road surface under the wheels, set by the level: "", "mud" or "ice".
 var surface := "":
 	set(v):
@@ -147,10 +139,6 @@ var _prev_vel := Vector2.ZERO
 var _since_landing := 99.0
 var _skin: Node2D
 var _springs_node: Node2D
-var _cannon: Sprite2D
-var _cannon_cd := 0.0
-var _reload := 0.0  ## an empty cannon slowly reloads one slug at a time
-const RELOAD_TIME := 3.0
 var _glass: Sprite2D
 var _smoke: CPUParticles2D
 
@@ -196,7 +184,7 @@ func _build_chassis() -> void:
 	chassis.max_contacts_reported = 4
 	chassis.continuous_cd = RigidBody2D.CCD_MODE_CAST_SHAPE
 	chassis.collision_layer = LAYER_BUS
-	chassis.collision_mask = LAYER_WORLD | LAYER_BLOCKERS
+	chassis.collision_mask = LAYER_WORLD
 	chassis.transform = _spawn
 	chassis.linear_velocity = _spawn_vel
 	chassis.angular_velocity = _spawn_spin
@@ -234,8 +222,6 @@ func _build_skin() -> void:
 		_shell[piece[0]] = s
 	_rocket_sprite = _sprite(TEX_ROCKET, ROCKET_POS)
 	skin.add_child(_rocket_sprite)
-	_cannon = _sprite(TEX_CANNON, CANNON_POS)
-	skin.add_child(_cannon)
 
 	# Everything that burns lives under one node so it can follow the rocket
 	# when the rocket tears off.
@@ -309,7 +295,7 @@ func _build_wheels() -> void:
 		w.max_contacts_reported = 2
 		w.continuous_cd = RigidBody2D.CCD_MODE_CAST_SHAPE
 		w.collision_layer = LAYER_BUS
-		w.collision_mask = LAYER_WORLD | LAYER_BLOCKERS
+		w.collision_mask = LAYER_WORLD
 		w.position = _spawn * Vector2(x, WHEEL_REST_Y)
 		w.linear_velocity = _spawn_vel
 		var shape := CollisionShape2D.new()
@@ -412,19 +398,6 @@ func _physics_process(delta: float) -> void:
 		honk()
 	throttle = right
 	wants_fire = fire
-	_cannon_cd -= delta
-	if ammo <= 0:
-		_reload += delta
-		if _reload >= RELOAD_TIME:
-			_reload = 0.0
-			ammo = 1
-			Audio.play("ammo_pickup", -8.0)
-	else:
-		_reload = 0.0
-	var shoot: bool = ai_input.get("shoot", false) if not ai_input.is_empty() \
-			else Input.is_action_just_pressed("fire")
-	if shoot and controls_enabled:
-		fire_cannon()
 
 	var wheel_contacts := 0
 	for w in wheels:
@@ -469,56 +442,6 @@ func _drive(right: float) -> void:
 				w.apply_torque(-brake_torque * grip * signf(w.angular_velocity))
 			elif w.angular_velocity > -max_wheel_spin * 0.4:
 				w.apply_torque(drive_torque * right * 0.6)
-
-
-## Bumper cannon: one slug straight ahead, with a kick.
-func fire_cannon() -> void:
-	if _cannon_cd > 0.0 or is_crashed or in_hazard != "":
-		return
-	_cannon_cd = cannon_cooldown
-	if ammo <= 0:
-		Audio.play("ui_back", -6.0)
-		passengers.driver_say(["OUT OF AMMO!", "CLICK. CLICK.", "NEED AMMO!"].pick_random())
-		return
-	ammo -= 1
-	if "--trace" in OS.get_cmdline_user_args():
-		print("FIRE at x=%d rot=%.2f ammo=%d" % [chassis.global_position.x, chassis.rotation, ammo])
-	var xf := chassis.global_transform
-	# The cannon self-levels: shots keep most of their aim toward the road ahead
-	# even when the bus is pitched up a hill or nose-down in the air.
-	var dir := Vector2(xf.x.x, xf.x.y * 0.15).normalized()
-	var muzzle := xf * MUZZLE
-	add_child(Slug.new().fire(muzzle, dir, chassis.linear_velocity, xf * Vector2(20, 10)))
-	chassis.apply_central_impulse(-dir * cannon_recoil * chassis.mass)
-	Audio.play("cannon", -2.0, 1.0, 0.05)
-	Fx.shake(2.5)
-	var tw := create_tween()
-	tw.tween_property(_cannon, "position:x", CANNON_POS.x - 4, 0.04)
-	tw.tween_property(_cannon, "position:x", CANNON_POS.x, 0.18)
-	var flash := _light(TEX_RADIAL, MUZZLE + Vector2(4, 0), Color(1, 0.85, 0.5), 2.2, 1.2)
-	chassis.add_child(flash)
-	var tw2 := create_tween()
-	tw2.tween_property(flash, "energy", 0.0, 0.12)
-	tw2.tween_callback(flash.queue_free)
-	var smoke := CPUParticles2D.new()
-	smoke.position = muzzle
-	smoke.one_shot = true
-	smoke.explosiveness = 0.9
-	smoke.amount = 14
-	smoke.lifetime = 0.6
-	smoke.direction = dir
-	smoke.spread = 25.0
-	smoke.gravity = Vector2(0, -30)
-	smoke.initial_velocity_min = 40.0
-	smoke.initial_velocity_max = 120.0
-	smoke.scale_amount_min = 1.5
-	smoke.scale_amount_max = 3.0
-	smoke.color_ramp = _gradient([[0.0, Color(1, 0.9, 0.6)], [0.25, Color(0.75, 0.72, 0.7, 0.8)], [1.0, Color(0.6, 0.6, 0.6, 0)]])
-	add_child(smoke)
-	smoke.emitting = true
-	get_tree().create_timer(0.8).timeout.connect(smoke.queue_free)
-	if randf() < 0.25:
-		passengers.driver_say(["EAT THIS!", "FIRE!", "OUTTA MY WAY!", "BOOM!"].pick_random(), true)
 
 
 ## Something outside the bus (an obstacle) wrecks it.
@@ -808,10 +731,6 @@ func _break_apart() -> void:
 		if piece[0] == "sign":
 			_sign_light.reparent(body)
 	_shatter_glass(xf, vel)
-	var gun := _debris(TEX_CANNON, CANNON_POS, Rect2(CANNON_POS, Vector2(16, 8)), 0.08, xf)
-	gun.linear_velocity = vel + Vector2(randf_range(20, 120), randf_range(-240, -120))
-	gun.angular_velocity = randf_range(-12.0, 12.0)
-	_cannon.hide()
 
 	_rocket_debris = _debris(TEX_ROCKET, ROCKET_POS, Rect2(ROCKET_POS, ROCKET_SIZE), 0.25, xf)
 	_rocket_debris.linear_velocity = vel + Vector2(randf_range(-80, 20), randf_range(-220, -140))

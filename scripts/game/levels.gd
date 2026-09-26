@@ -8,10 +8,10 @@ const WORLDS := ["DESERT", "JUNGLE", "MOUNTAINS", "SNOW", "VOLCANO", "MOON", "BO
 const GAP_EXTRA := 100.0
 
 # title, biome, blurb, jumps, gap kinds, gap length range, landing-height range (+-px),
-# fuel tank, options (blockers, zone "mud"/"ice", weather)
+# fuel tank, options (zone "mud"/"ice", weather)
 const RECIPES := [
-	["FIRST DAY", "desert", "Hold the rocket off the ramp. Land flat.", 3, ["chasm"], [170, 210], 0, 100, {"blockers": false}],
-	["OASIS HOP", "desert", "Don't feed the bus to the oasis.", 4, ["water", "chasm"], [190, 240], 0, 100, {"blockers": false}],
+	["FIRST DAY", "desert", "Hold the rocket off the ramp. Land flat.", 3, ["chasm"], [170, 210], 0, 100, {}],
+	["OASIS HOP", "desert", "Don't feed the bus to the oasis.", 4, ["water", "chasm"], [190, 240], 0, 100, {}],
 	["DOUBLE TROUBLE", "desert", "Crates, boulders, gaps. One tank.", 5, ["chasm", "water"], [210, 260], 20, 100, {}],
 	["MESA LEAP", "desert", "Sandstorm. The far sides get higher.", 6, ["chasm"], [220, 280], 40, 100, {"weather": "sandstorm"}],
 	["RIVER RUN", "jungle", "Rivers, bugs, and one very nervous driver.", 5, ["water", "swamp"], [220, 270], 20, 100, {"weather": "rain"}],
@@ -35,18 +35,8 @@ const RECIPES := [
 	["DARK SIDE", "moon", "Nobody's out here to see you crash.", 7, ["chasm"], [560, 740], 60, 60, {}],
 	["EARTHRISE", "moon", "The last stop is 238,900 miles from home.", 8, ["chasm"], [600, 800], 70, 60, {}],
 	["ANOMALOUS RIDE", "border", "Floating islands. Don't look down.", 8, ["chasm"], [260, 320], 50, 140,
-		{"blockers": false}],
+		{}],
 ]
-const SMASHABLES := {
-	"desert": ["crate", "cone", "fence", "barrel", "mailbox"], "jungle": ["crate", "fence", "barrel"],
-	"mountain": ["crate", "cone", "fence", "barrel"], "snow": ["crate", "cone", "fence"],
-	"volcano": ["barrel", "barrel", "crate"], "moon": ["crate", "barrel"], "border": ["crate", "cone"],
-}
-const BLOCKERS := {
-	"desert": ["boulder", "barricade"], "jungle": ["boulder", "barricade"], "mountain": ["boulder", "barricade"],
-	"snow": ["barricade", "boulder"], "volcano": ["boulder", "barricade"], "moon": ["boulder"],
-	"border": ["boulder"],
-}
 const CHECKPOINT_EVERY := 3  ## jumps between checkpoints
 const FUEL_EVERY := 2  ## jumps between fuel cans
 
@@ -69,7 +59,7 @@ static func code(i: int) -> String:
 
 
 ## Turns a recipe into segments: an opening straight, then for each jump a varied run
-## (hills, climbs/descents, mud/ice, clutter, a blocker to shoot), a flat run-up, the
+## (hills, climbs/descents, mud/ice), a flat run-up, the
 ## ramp and gap, and a landing strip; checkpoints every few jumps; a finish straight.
 static func _build(index: int, r: Array) -> Dictionary:
 	var title: String = r[0]
@@ -79,7 +69,6 @@ static func _build(index: int, r: Array) -> Dictionary:
 	var gap_range: Array = r[5]
 	var dy_range: float = r[6]
 	var opts: Dictionary = r[8]
-	var blockers: bool = opts.get("blockers", true)
 	var zone: String = opts.get("zone", "")
 	var difficulty := clampf(index / 23.0, 0.0, 1.0)
 	var downhill_chance: float = 0.25 + 0.25 * difficulty  # more downhill landings in later worlds
@@ -88,7 +77,6 @@ static func _build(index: int, r: Array) -> Dictionary:
 
 	var segs: Array = [_f(700 if index == 0 else 500)]
 	var height := 0.0  # rough road height, kept within bounds
-	var blocker_count := 0
 	for j in jumps:
 		# The run between jumps: 2-4 varied pieces.
 		for k in rng.randi_range(2, 4):
@@ -114,15 +102,6 @@ static func _build(index: int, r: Array) -> Dictionary:
 				segs.append({"t": zone, "len": rng.randf_range(160, 280)})
 			else:
 				segs.append(_f(rng.randf_range(260, 420)))
-		if blockers and j % 3 == 1:  # blockers are occasional, not constant speed bumps
-			var kind: String = BLOCKERS[biome][rng.randi() % BLOCKERS[biome].size()]
-			segs.append(_f(500))  # a long flat approach so there's time to aim and shoot
-			segs.append(_o(kind))
-			segs.append(_f(260))
-			blocker_count += Obstacle.KINDS[kind].hp
-			if blocker_count >= 3:
-				segs.append({"t": "ammo"})
-				blocker_count = 0
 		# Long, hard levels get a can before every jump; early ones every other jump.
 		if j > 0 and (index >= 8 or j % FUEL_EVERY == 0):
 			segs.append(_f(120))
@@ -151,40 +130,8 @@ static func _build(index: int, r: Array) -> Dictionary:
 	segs.append(_f(400))
 	segs.append(_end())
 
-	segs = _sprinkle(segs, biome, title)
-	# Enough slugs for every blocker, plus spares for shooting barrels.
-	var ammo := 3
-	var barrels := 0
-	for s in segs:
-		if s.t == "obj" and Obstacle.KINDS[s.kind].blocker:
-			ammo += Obstacle.KINDS[s.kind].hp
-		elif s.t == "obj" and s.kind == "barrel":
-			barrels += 1
-	ammo += barrels / 2
 	return {"title": title, "biome": biome, "fuel": float(r[7]), "blurb": r[2], "segments": segs,
-		"ammo": mini(ammo, 14), "weather": opts.get("weather", "")}
-
-
-## Road clutter on long flat stretches (deterministic per level title).
-static func _sprinkle(segs: Array, biome: String, title: String) -> Array:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(title) + 1
-	var out := []
-	for i in segs.size():
-		var s: Dictionary = segs[i]
-		var before_ramp: bool = i + 1 < segs.size() and segs[i + 1].t == "ramp"
-		var before_blocker: bool = i + 1 < segs.size() and segs[i + 1].t == "obj"  # keep the line of fire clear
-		if s.t != "flat" or s.len < 260 or i == 0 or before_ramp or before_blocker or rng.randf() < 0.35:
-			out.append(s)
-			continue
-		var a: float = s.len * 0.45
-		out.append({"t": "flat", "len": a})
-		var pool: Array = SMASHABLES[biome]
-		for k in rng.randi_range(1, 3):
-			out.append({"t": "obj", "kind": pool[rng.randi() % pool.size()]})
-			out.append({"t": "flat", "len": 14})
-		out.append({"t": "flat", "len": s.len - a})
-	return out
+		"weather": opts.get("weather", "")}
 
 
 static func _f(length: float) -> Dictionary:
@@ -202,10 +149,6 @@ static func _s(length: float, dy: float) -> Dictionary:
 static func _j(ramp_len: float, rise: float, gap_len: float, kind: String, dy := 0.0) -> Array:
 	return [{"t": "ramp", "len": ramp_len, "rise": rise},
 		{"t": "gap", "len": gap_len + GAP_EXTRA, "kind": kind, "dy": dy}]
-
-
-static func _o(kind: String) -> Dictionary:
-	return {"t": "obj", "kind": kind}
 
 
 static func _fuel() -> Dictionary:

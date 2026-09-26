@@ -7,7 +7,6 @@ const BINDINGS := {
 	"rocket": [KEY_SPACE],
 	"reset": [KEY_R],
 	"horn": [KEY_H],
-	"fire": [KEY_F, KEY_J],
 	"pause": [KEY_ESCAPE, KEY_P],
 }
 

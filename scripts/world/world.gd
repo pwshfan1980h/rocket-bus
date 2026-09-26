@@ -16,7 +16,6 @@ var life: Life
 var camera: Camera2D
 var bus: Bus
 var backdrop: Backdrop
-var obstacles: Array[Obstacle] = []
 var weather: Weather
 var tint: CanvasModulate
 
@@ -39,15 +38,6 @@ func build(biome: String, segments: Array) -> World:
 	add_child(props)
 	weeds = Weeds.new().setup(terrain)
 	add_child(weeds)
-	for o in terrain.objects:
-		var ob := Obstacle.new().setup(o.kind)
-		ob.position = Vector2(o.x, terrain.surface_y(o.x) + 1)
-		add_child(ob)
-		obstacles.append(ob)
-	for p in terrain.ammo_spots:
-		var crate := AmmoCrate.new()
-		crate.position = p
-		add_child(crate)
 	for p in terrain.pickups:
 		var can := FuelCan.new()
 		can.position = p

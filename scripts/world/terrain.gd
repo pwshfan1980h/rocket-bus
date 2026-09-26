@@ -11,10 +11,8 @@ extends Node2D
 ##   {"t": "ramp", "len": 150, "rise": 50}              must be followed by a gap
 ##   {"t": "gap", "len": 240, "dy": 0, "kind": "chasm"} kind: chasm|water|swamp|ice|lava
 ##   {"t": "fuel"}                                      fuel can at this spot
-##   {"t": "ammo"}                                      cannon ammo crate at this spot
 ##   {"t": "mud", "len": 200} / {"t": "ice", "len": 200}  flat road with a mud / ice patch
 ##   {"t": "checkpoint"}                                checkpoint banner at this spot
-##   {"t": "obj", "kind": "crate"}                      road obstacle (see Obstacle.KINDS)
 ##   {"t": "finish", "len": 300}                        bus stop + finish line
 
 const SHADER := preload("res://assets/shaders/terrain.gdshader")
@@ -27,8 +25,6 @@ var islands: Array[Dictionary] = []
 var gaps: Array[Dictionary] = []
 var ramps: Array[Dictionary] = []
 var pickups: Array[Vector2] = []
-var ammo_spots: Array[Vector2] = []
-var objects: Array[Dictionary] = []  # {"x": float, "kind": String}
 var zones: Array[Dictionary] = []  # {"x0", "x1", "kind": "mud"|"ice"}
 var checkpoints: Array[float] = []
 var signs: Array[Vector2] = []
@@ -97,10 +93,6 @@ func build(segments: Array, biome_name: String) -> Terrain:
 				_cur = PackedVector2Array([Vector2(_x, _y)])
 			"fuel":
 				pickups.append(Vector2(_x, _y - 30))
-			"ammo":
-				ammo_spots.append(Vector2(_x, _y - 30))
-			"obj":
-				objects.append({"x": _x, "kind": seg.kind})
 			"checkpoint":
 				checkpoints.append(_x)
 			"mud", "ice":
