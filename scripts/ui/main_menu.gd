@@ -1,7 +1,7 @@
 extends Node2D
 ## Start screen: a parked bus idling in a random world, the logo, and the menu.
 
-const WORLDS := ["desert", "jungle", "mountain", "snow", "volcano", "city"]
+const WORLDS := ["desert", "moon", "jungle", "mountain", "snow", "volcano", "city"]
 
 static var _visit := 0
 

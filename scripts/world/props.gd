@@ -127,6 +127,10 @@ func _draw() -> void:
 			"palm": _palm(p, s, f)
 			"hydrant": _hydrant(p)
 			"warn": _warn(p)
+			"moonrock": _rock(p, s * 0.8)
+			"flag": _flag(p)
+			"lander": _lander(p, f)
+			"dish": _dish(p, f)
 			"busstop": _busstop(p)
 
 
@@ -263,6 +267,34 @@ func _hydrant(p: Vector2) -> void:
 	_r(p.x - 2, p.y - 8, 5, 8, Color("#d8303a"))
 	_r(p.x - 3, p.y - 5, 7, 2, Color("#d8303a"))
 	_r(p.x - 1, p.y - 9, 3, 1, Color("#f05060"))
+
+
+func _flag(p: Vector2) -> void:
+	_r(p.x, p.y - 34, 1, 34, Color("#c8c8d0"))
+	_r(p.x + 1, p.y - 34, 16, 10, Color("#ffcc26"))
+	_r(p.x + 1, p.y - 30, 16, 2, Color("#1a1420"))  # checker band
+	for k in 8:
+		_r(p.x + 1 + k * 2, p.y - 30 + (k % 2), 1, 1, Color.WHITE)
+	_r(p.x + 4, p.y - 33, 8, 2, Color("#ff4aa8"))
+
+
+func _lander(p: Vector2, f: float) -> void:
+	var gold := Color("#d8a830")
+	_r(p.x - 10, p.y - 22, 20, 12, gold)
+	_r(p.x - 10, p.y - 22, 20, 2, gold.lightened(0.3))
+	_r(p.x - 7, p.y - 32, 14, 10, Color("#b8b8c4"))
+	_r(p.x - 3, p.y - 29, 5, 4, Color("#1a1a2a"))
+	for side in [-1, 1]:
+		draw_line(Vector2(p.x + side * 9, p.y - 12), Vector2(p.x + side * 15, p.y), Color("#a0a0aa"), 1.0)
+		_r(p.x + side * 15 - 2, p.y - 1, 4, 1, Color("#a0a0aa"))
+	_r(p.x + 5 * f, p.y - 36, 1, 4, Color("#c8c8d0"))
+
+
+func _dish(p: Vector2, f: float) -> void:
+	_r(p.x - 1, p.y - 16, 2, 16, Color("#a0a0aa"))
+	draw_arc(Vector2(p.x + 2 * f, p.y - 22), 8, PI * 0.1, PI * 1.1, 10, Color("#e0e0ea"), 3.0)
+	draw_line(Vector2(p.x + 2 * f, p.y - 22), Vector2(p.x + 8 * f, p.y - 28), Color("#c8c8d0"), 1.0)
+	_r(p.x + 8 * f - 1, p.y - 29, 2, 2, Color("#ff4040"))
 
 
 func _warn(p: Vector2) -> void:

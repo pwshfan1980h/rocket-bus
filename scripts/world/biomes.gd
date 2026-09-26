@@ -117,6 +117,25 @@ const ALL := {
 		"chatter": ["IS THAT LAVA?!", "IT'S GETTING HOT IN HERE", "I SMELL SMOKE", "WHY IS THE SKY RED?",
 			"THIS IS FINE"],
 	},
+	"moon": {
+		"title": "MOON",
+		"sky": ["#02020a", "#04040e", "#060614", "#08081a", "#0a0a20", "#0c0c26", "#10102c"],
+		"sun": {"r": 0}, "earth": true,
+		"stars": 1.6, "aurora": false,
+		"modulate": Color(0.82, 0.84, 0.95),
+		"layers": [
+			{"kind": "craters", "parallax": 0.04, "color": "#3a3a48", "h": 70},
+			{"kind": "craters", "parallax": 0.12, "color": "#2c2c38", "h": 48},
+			{"kind": "craters", "parallax": 0.26, "color": "#1e1e28", "h": 30},
+		],
+		"ground": {"road": "#5a5a66", "edge": "#a8a8b4", "line": "#e8e8f0", "shoulder": "#b0b0ba",
+			"body": ["#8a8a94", "#7a7a86", "#9a9aa4", "#6a6a76"]},
+		"decor": ["moonrock", "moonrock", "flag", "lander", "dish"], "fg": "",
+		"life": ["dust"], "gravity": 0.4,
+		"music": "music_moon", "ambience": "amb_moon_loop", "friction": 0.85,
+		"chatter": ["ONE SMALL STEP...", "I'M FLOATING!", "IS THAT EARTH?", "WHY IS THE BUS FLOATY?",
+			"I CAN'T BREATHE! ...OH WAIT."],
+	},
 }
 
 

@@ -4,7 +4,7 @@ extends Control
 ## to far ahead, with gaps (coloured by kind), ramps, blockers, barrels, pickups,
 ## the finish flag and the bus itself. Gives foresight at high speed.
 
-const W := 218.0
+const W := 200.0
 const H := 26.0
 const BEHIND := 350.0
 const AHEAD := 2650.0

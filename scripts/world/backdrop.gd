@@ -102,6 +102,8 @@ func _draw_sky(horizon: float, cam_x: float) -> void:
 		if sun.get("moon", false):
 			for crater in [Vector3(-4, -3, 3), Vector3(5, 4, 2), Vector3(2, -7, 1.5)]:
 				draw_circle(c + Vector2(crater.x, crater.y), crater.z, Color(0.7, 0.74, 0.88))
+	if biome.get("earth", false):
+		_draw_earth(Vector2(360, 58), 20.0)
 	for cl in _clouds:
 		var x := fposmod(cl.x - cam_x * 0.02 + _time * 4.0 * cl.z, LOOP + 120) - 60
 		if x < SIZE.x + 60:
@@ -112,6 +114,20 @@ func _draw_sky(horizon: float, cam_x: float) -> void:
 		for i in 5:
 			var x := fposmod(i * 211.0 + _time * 6.0, LOOP) - 100
 			draw_rect(Rect2(x, 20 + i * 11, 160, 10), Color(0.1, 0.02, 0.02, 0.25))
+
+
+func _draw_earth(c: Vector2, r: float) -> void:
+	for dy in range(-int(r), int(r) + 1):
+		var half := sqrt(maxf(0.0, r * r - dy * dy))
+		for dx in range(-int(half), int(half) + 1):
+			var land := sin((dx + _time * 2.0) * 0.35) * cos(dy * 0.4) + sin(dx * 0.17 + dy * 0.23) > 0.9
+			var col := Color("#3a7ae0") if not land else Color("#4aa050")
+			if sin(dx * 0.5 + dy * 0.9 + _time) > 0.93:
+				col = Color("#f0f4ff")  # clouds
+			if dx > half - 6:  # night side
+				col = col.darkened(0.6)
+			draw_rect(Rect2(c.x + dx, c.y + dy, 1, 1), col)
+	draw_arc(c, r + 1.5, 0, TAU, 32, Color(0.5, 0.7, 1.0, 0.35), 2.0)
 
 
 func _draw_heights(layer: Dictionary, base: float, scroll: float) -> void:
@@ -226,6 +242,20 @@ func _heights(kind: String, max_h: float, rng: RandomNumberGenerator) -> PackedF
 					var idx := (x + k + n) % n
 					h[idx] = maxf(h[idx], th - absf(k) * th / w)
 				x += rng.randi_range(3, 7)
+		"craters":
+			var p1 := rng.randf() * TAU
+			for i in n:
+				h[i] = max_h * (0.5 + 0.25 * sin(i * COL / 90.0 + p1))
+			for k in 9:  # scoop out craters with raised rims
+				var cx := rng.randi() % n
+				var r := rng.randi_range(8, 22)
+				for d in range(-r - 3, r + 4):
+					var idx := (cx + d + n) % n
+					var t := absf(d) / float(r)
+					if t < 1.0:
+						h[idx] -= (1.0 - t * t) * r * 0.9
+					elif t < 1.3:
+						h[idx] += 3.0
 		"canopy":
 			for i in n:
 				h[i] = max_h * 0.35

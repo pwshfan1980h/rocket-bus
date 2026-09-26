@@ -24,6 +24,8 @@ func _ready() -> void:
 	}
 	var dense := {"JUNGLE": 3, "MOUNTAINS": 2, "DESERT": 1, "BAY CITY": 1, "SNOW": 1, "VOLCANO": 1}
 	var title: String = terrain.biome.title
+	if title == "MOON":  # nothing grows up there
+		return
 	for c in palette.get(title, palette.DESERT):
 		_colors.append(Color(c))
 	var rng := RandomNumberGenerator.new()

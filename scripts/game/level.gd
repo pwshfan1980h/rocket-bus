@@ -343,10 +343,11 @@ func _bot_drive() -> void:
 		target_angle = atan2(ahead - land_y, 30.0)
 		if p.x > next.x0 - 70 and p.x < next.x1:
 			var dy := land_y - 31 - p.y
-			var t := (-v.y + sqrt(maxf(0.0, v.y * v.y + 2 * 700 * dy))) / 700.0  # time to fall to the landing height
+			var g: float = PhysicsServer2D.area_get_param(get_world_2d().space, PhysicsServer2D.AREA_PARAM_GRAVITY)
+			var t := (-v.y + sqrt(maxf(0.0, v.y * v.y + 2 * g * dy))) / g  # time to fall to the landing height
 			# Keep burning until the ballistic arc lands past the gap AND clears the far lip.
 			var t_lip: float = maxf(0.0, (next.x1 + 20 - p.x) / maxf(v.x, 1.0))
-			var y_at_lip: float = p.y + v.y * t_lip + 350.0 * t_lip * t_lip
+			var y_at_lip: float = p.y + v.y * t_lip + g * 0.5 * t_lip * t_lip
 			var clears: bool = y_at_lip < next.land_y - 42 or p.x > next.x1
 			fire = p.x + v.x * t < next.x1 + 130 or not clears or not bus.airborne
 	if bus.airborne:
@@ -391,7 +392,7 @@ func _build_hud() -> void:
 	_label(layer, "%s %s" % [Levels.code(index), def.title], Vector2(8, 8), 8, Color("#ffcc26"), 2)
 	_hud.gaps = _label(layer, "GAPS 0/%d" % world.terrain.gaps.size(), Vector2(8, 20), 8, Color("#3cf0dc"), 2)
 	var minimap := Minimap.new().setup(world, bus)
-	minimap.position = Vector2(138, 5)
+	minimap.position = Vector2(156, 5)
 	layer.add_child(minimap)
 	_hud.time = _label(layer, "0.0", Vector2(0, 34), 8, Color.WHITE, 2)
 	_hud.time.size.x = 480

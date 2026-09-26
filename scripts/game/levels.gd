@@ -2,7 +2,7 @@ class_name Levels
 ## The 20 levels: 5 worlds x 4. Segment format is documented in terrain.gd.
 ## Gap dy is relative to the road before the ramp (negative = land higher).
 
-const WORLDS := ["DESERT", "JUNGLE", "MOUNTAINS", "SNOW", "VOLCANO"]
+const WORLDS := ["DESERT", "JUNGLE", "MOUNTAINS", "SNOW", "VOLCANO", "MOON"]
 ## The ramp alone carries the bus ~200px, so every gap gets this much extra to make the rocket matter.
 const GAP_EXTRA := 100.0
 
@@ -89,6 +89,18 @@ static func all() -> Array:
 			_f(300), _j(150, 55, 320, "lava"), _f(200), _j(150, 55, 340, "chasm", -40), _f(200), _fuel(),
 			_f(80), _j(160, 60, 360, "lava"), _f(200), _j(150, 55, 340, "lava", 40), _s(200, 30), _fuel(),
 			_f(80), _j(160, 60, 380, "lava"), _f(200), _j(160, 60, 400, "lava"), _f(500), _end()]),
+		# --- World 6: Moon (40% gravity: long, floaty jumps) -------------------------
+		_lvl("ONE SMALL HOP", "moon", 70, "Low gravity. Easy on the rocket.", [
+			_f(500), _j(150, 45, 610, "chasm"), _f(500), _end()]),
+		_lvl("CRATER HOPPER", "moon", 60, "Craters everywhere. Float between them.", [
+			_f(400), _j(150, 45, 670, "chasm"), _f(400), _h(400, 24, 2), _j(150, 50, 750, "chasm", -30),
+			_f(500), _end()]),
+		_lvl("DARK SIDE", "moon", 60, "Nobody's out here to see you crash.", [
+			_f(400), _j(150, 50, 750, "chasm"), _f(350), _fuel(), _f(100), _j(160, 55, 870, "chasm", 40),
+			_f(400), _j(150, 50, 810, "chasm", -40), _f(500), _end()]),
+		_lvl("EARTHRISE", "moon", 60, "The last stop is 238,900 miles from home.", [
+			_f(400), _j(150, 50, 810, "chasm"), _f(300), _j(160, 55, 900, "chasm", -40), _f(300), _fuel(),
+			_f(100), _j(160, 55, 960, "chasm", 40), _f(300), _j(170, 60, 1040, "chasm"), _f(600), _end()]),
 	]
 
 

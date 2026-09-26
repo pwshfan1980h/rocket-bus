@@ -33,6 +33,7 @@ var _hud := {}
 
 
 func _ready() -> void:
+	World.set_space_gravity(get_world_2d(), 1.0)
 	_args = OS.get_cmdline_user_args()
 	var night := CanvasModulate.new()
 	night.color = Color(0.68, 0.6, 0.84)

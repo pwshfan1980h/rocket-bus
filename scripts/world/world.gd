@@ -74,6 +74,15 @@ func build(biome: String, segments: Array) -> World:
 	return self
 
 
+func _ready() -> void:
+	set_space_gravity(get_world_2d(), Biomes.get_biome(biome_name).get("gravity", 1.0))
+
+
+static func set_space_gravity(w: World2D, scale: float) -> void:
+	PhysicsServer2D.area_set_param(w.space, PhysicsServer2D.AREA_PARAM_GRAVITY,
+			ProjectSettings.get_setting("physics/2d/default_gravity") * scale)
+
+
 func spawn_bus(at := Vector2.INF, fuel := 100.0, vel := Vector2.ZERO) -> Bus:
 	if bus:
 		bus.queue_free()
