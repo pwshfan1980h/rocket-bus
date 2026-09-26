@@ -507,6 +507,59 @@ def passengers():
     c.save("passengers.png")
 
 
+def driver():
+    """The driver in profile, facing right (the way the bus goes), hands on the wheel.
+    3 frames of 12x11: idle, cheer (fist up), shock."""
+    skin, cap, shirt = (220, 170, 130), (20, 30, 60), (30, 60, 150)
+    eye, mouth, wheel = (24, 18, 30), (140, 40, 50), (40, 40, 48)
+    c = Canvas(36, 11)
+    for f in range(3):
+        ox = f * 12
+
+        def p(x, y, col):
+            c.set(ox + x, y, col)
+
+        for y in range(2, 7):  # head (profile): back of head left, nose right
+            for x in range(2, 7):
+                p(x, y, skin)
+        p(7, 4, skin)  # nose
+        for x in range(2, 7):  # cap + forward brim
+            p(x, 1, cap)
+            p(x, 2, cap)
+        p(7, 2, cap)
+        p(8, 2, cap)
+        p(3, 0, cap)
+        p(4, 0, cap)
+        p(2, 3, (60, 40, 30))  # hair under the cap
+        p(5, 3, eye if f != 2 else (255, 255, 255))
+        if f == 2:
+            p(5, 4, eye)
+            p(6, 5, mouth)
+            p(6, 6, mouth)
+        elif f == 1:
+            p(6, 5, mouth)
+            p(5, 5, mouth)
+        else:
+            p(6, 5, mouth)
+        for y in range(7, 11):  # shoulders/torso
+            for x in range(1, 7):
+                p(x, y, shirt)
+        if f == 1:  # fist pumped up
+            p(7, 1, skin)
+            p(7, 0, skin)
+            p(7, 2, shirt)
+            p(7, 3, shirt)
+        else:  # arm out to the wheel
+            for x in range(6, 9):
+                p(x, 8, shirt)
+            p(9, 8, skin)
+        for y in range(6, 11):  # steering wheel, seen edge-on
+            p(10, y, wheel)
+        p(9, 6, wheel)
+        p(11, 10, wheel)
+    c.save("driver.png")
+
+
 def axle():
     c = Canvas(12, 3)
     c.rect(0, 0, 11, 2, STEEL_D)
@@ -589,7 +642,7 @@ def split_pieces():
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     for fn in (frame, roof, roof_sign, upper_panel, lower_panel, hood, fenders, wheel, rocket, cannon,
-               flame, passengers, axle, light_radial, light_cone):
+               flame, passengers, driver, axle, light_radial, light_cone):
         fn()
     split_pieces()
     for old in ("bus_frame.png", "bus_upper.png", "bus_lower.png", "bus_roof.png"):

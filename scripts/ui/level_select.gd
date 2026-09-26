@@ -99,6 +99,7 @@ func _play(i: int) -> void:
 	_leaving = true
 	Audio.play("ui_select", -4.0)
 	GameState.current_level = i
+	GameState.checkpoint = {}
 	Transition.go("res://scenes/level.tscn")
 
 
@@ -109,7 +110,8 @@ func _refresh() -> void:
 		var s: int = GameState.stars.get(i, 0)
 		c.box.color = Color("#ffcc26") if i == sel else (Color(0.1, 0.06, 0.16, 0.9) if not locked else Color(0.05, 0.03, 0.08, 0.8))
 		c.code.label_settings.font_color = Color("#1a0f29") if i == sel else (Color.WHITE if not locked else Color(1, 1, 1, 0.3))
-		c.stars.text = "LOCKED" if locked else "*".repeat(s) + "-".repeat(3 - s)
+		var g: String = GameState.grades.get(i, "")
+		c.stars.text = "LOCKED" if locked else "*".repeat(s) + "-".repeat(3 - s) + (" " + g if g != "" else "")
 		c.stars.label_settings.font_color = Color("#1a0f29") if i == sel else Color("#ffcc26")
 	var def := Levels.get_level(sel)
 	_info_title.text = "%s  %s" % [Levels.code(sel), def.title]

@@ -432,8 +432,12 @@ func fire_cannon() -> void:
 		passengers.driver_say(["OUT OF AMMO!", "CLICK. CLICK.", "NEED AMMO!"].pick_random())
 		return
 	ammo -= 1
+	if "--trace" in OS.get_cmdline_user_args():
+		print("FIRE at x=%d rot=%.2f ammo=%d" % [chassis.global_position.x, chassis.rotation, ammo])
 	var xf := chassis.global_transform
-	var dir := xf.x
+	# The cannon self-levels: shots keep most of their aim toward the road ahead
+	# even when the bus is pitched up a hill or nose-down in the air.
+	var dir := Vector2(xf.x.x, xf.x.y * 0.15).normalized()
 	var muzzle := xf * MUZZLE
 	add_child(Slug.new().fire(muzzle, dir, chassis.linear_velocity, xf * Vector2(20, 10)))
 	chassis.apply_central_impulse(-dir * cannon_recoil * chassis.mass)

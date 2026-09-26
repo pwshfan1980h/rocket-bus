@@ -36,6 +36,11 @@ func _ready() -> void:
 		var y := terrain.ground_y(s.x)
 		if not is_nan(y):
 			_add_warning_sign(Vector2(s.x, y))
+	for cx in terrain.checkpoints:
+		var cy := terrain.surface_y(cx)
+		if not is_nan(cy):
+			_items.append({"kind": "checkpoint", "at": Vector2(cx, cy), "s": 1.0, "flip": false})
+			perches.append(Vector2(cx - 18, cy - 40))
 	if terrain.finish_x > 0:
 		_add_bus_stop(Vector2(terrain.finish_x, terrain.surface_y(terrain.finish_x)))
 
@@ -127,6 +132,7 @@ func _draw() -> void:
 			"palm": _palm(p, s, f)
 			"hydrant": _hydrant(p)
 			"warn": _warn(p)
+			"checkpoint": _checkpoint(p)
 			"moonrock": _rock(p, s * 0.8)
 			"flag": _flag(p)
 			"lander": _lander(p, f)
@@ -267,6 +273,15 @@ func _hydrant(p: Vector2) -> void:
 	_r(p.x - 2, p.y - 8, 5, 8, Color("#d8303a"))
 	_r(p.x - 3, p.y - 5, 7, 2, Color("#d8303a"))
 	_r(p.x - 1, p.y - 9, 3, 1, Color("#f05060"))
+
+
+func _checkpoint(p: Vector2) -> void:
+	for side in [-18, 16]:
+		_r(p.x + side, p.y - 40, 2, 40, Color("#c8c8d0"))
+	_r(p.x - 18, p.y - 42, 36, 8, Color("#28c8b4"))
+	for k in 9:
+		_r(p.x - 17 + k * 4, p.y - 41, 2, 2, Color.WHITE if k % 2 == 0 else Color("#1a1420"))
+		_r(p.x - 15 + k * 4, p.y - 39, 2, 2, Color.WHITE if k % 2 == 1 else Color("#1a1420"))
 
 
 func _flag(p: Vector2) -> void:

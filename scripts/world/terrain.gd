@@ -12,6 +12,7 @@ extends Node2D
 ##   {"t": "fuel"}                                      fuel can at this spot
 ##   {"t": "ammo"}                                      cannon ammo crate at this spot
 ##   {"t": "mud", "len": 200} / {"t": "ice", "len": 200}  flat road with a mud / ice patch
+##   {"t": "checkpoint"}                                checkpoint banner at this spot
 ##   {"t": "obj", "kind": "crate"}                      road obstacle (see Obstacle.KINDS)
 ##   {"t": "finish", "len": 300}                        bus stop + finish line
 
@@ -28,6 +29,7 @@ var pickups: Array[Vector2] = []
 var ammo_spots: Array[Vector2] = []
 var objects: Array[Dictionary] = []  # {"x": float, "kind": String}
 var zones: Array[Dictionary] = []  # {"x0", "x1", "kind": "mud"|"ice"}
+var checkpoints: Array[float] = []
 var signs: Array[Vector2] = []
 var finish_x := 0.0
 var end_x := 0.0
@@ -62,8 +64,9 @@ func build(segments: Array, biome_name: String) -> Terrain:
 			"ramp":
 				var base := _y
 				var x0 := _x
-				# Ends at the peak: a flat lip would drop the front wheels and pitch the bus nose-down.
-				_add_point(_x + seg.len, _y - seg.rise)
+				# A curved "kicker": gentle at the bottom, steepest at the lip, so the bus
+				# leaves nose-up instead of tipping over the top. Ends at the peak (no flat lip).
+				_add_curve(seg.len, func(t): return base - seg.rise * ramp_profile(t))
 				var r := {"x0": x0, "x1": x0 + seg.len, "lip_x": _x, "top_y": _y, "base_y": base}
 				ramps.append(r)
 				_cur_ramps.append(r)
@@ -91,6 +94,8 @@ func build(segments: Array, biome_name: String) -> Terrain:
 				ammo_spots.append(Vector2(_x, _y - 30))
 			"obj":
 				objects.append({"x": _x, "kind": seg.kind})
+			"checkpoint":
+				checkpoints.append(_x)
 			"mud", "ice":
 				zones.append({"x0": _x, "x1": _x + seg.len, "kind": seg.t})
 				_add_flat(seg.len)
@@ -326,21 +331,25 @@ func _draw_overlay(n: Node2D) -> void:
 			n.draw_rect(Rect2(b.x, b.y - 40 + k * 8, 20, 4), Color("#ffc828"))
 
 
+static func ramp_profile(t: float) -> float:
+	return pow(t, 1.6)
+
+
 func _draw_ramp(n: Node2D, r: Dictionary) -> void:
 	var plank := Color("#b87a3e")
 	var plank_d := Color("#744626")
-	var poly := PackedVector2Array([
-		Vector2(r.x0, r.base_y), Vector2(r.x1, r.top_y), Vector2(r.lip_x, r.top_y), Vector2(r.lip_x, r.base_y),
-	])
+	var top := PackedVector2Array()
+	for i in 17:
+		var t := i / 16.0
+		top.append(Vector2(lerpf(r.x0, r.x1, t), r.base_y - (r.base_y - r.top_y) * ramp_profile(t)))
+	var poly := top.duplicate()
+	poly.append(Vector2(r.x1, r.base_y))
 	n.draw_colored_polygon(poly, plank_d)
-	for i in 12:  # support struts
-		var t := (i + 0.5) / 12.0
-		var x := lerpf(r.x0, r.x1, t)
-		var y := lerpf(r.base_y, r.top_y, t)
-		n.draw_line(Vector2(x, y + 2), Vector2(x, r.base_y), plank_d.darkened(0.35), 1.0)
+	for i in range(1, 16):  # support struts
+		n.draw_line(top[i] + Vector2(0, 2), Vector2(top[i].x, r.base_y), plank_d.darkened(0.35), 1.0)
 		if i % 3 == 1:
-			n.draw_line(Vector2(x, y + 2), Vector2(x + 12, r.base_y), plank_d.darkened(0.2), 1.0)
-	n.draw_line(Vector2(r.x0, r.base_y), Vector2(r.x1, r.top_y), plank, 3.0)
+			n.draw_line(top[i] + Vector2(0, 2), Vector2(top[i].x + 12, r.base_y), plank_d.darkened(0.2), 1.0)
+	n.draw_polyline(top, plank, 3.0)
 	for y in range(int(r.top_y), int(r.base_y), 6):  # hazard stripes on the lip
 		n.draw_rect(Rect2(r.lip_x - 4, y, 4, 3), Color("#ffc828"))
 		n.draw_rect(Rect2(r.lip_x - 4, y + 3, 4, 3), Color("#1a1420"))

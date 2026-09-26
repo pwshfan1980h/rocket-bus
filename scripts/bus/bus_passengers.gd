@@ -8,6 +8,7 @@ extends Node2D
 enum Mood { IDLE, CHEER, SHOCK }
 
 const SHEET := preload("res://assets/sprites/passengers.png")
+const DRIVER_SHEET := preload("res://assets/sprites/driver.png")  # profile, facing the road
 const SWAY_GAIN := 0.004
 const SWAY_LIMIT := Vector2(2.0, 3.0)
 
@@ -57,15 +58,16 @@ var _air_quipped := false
 func _ready() -> void:
 	for seat in SEATS:
 		var s := Sprite2D.new()
-		s.texture = SHEET
+		var is_driver: bool = seat[1] == DRIVER_ROW
+		s.texture = DRIVER_SHEET if is_driver else SHEET
 		s.hframes = 3
-		s.vframes = 6
+		s.vframes = 1 if is_driver else 6
 		s.centered = false
-		s.position = seat[0]
+		s.position = seat[0] + (Vector2(-2, -1) if is_driver else Vector2.ZERO)
 		s.light_mask = 3  # lit by the world and by the cabin lights
 		add_child(s)
 		riders.append({
-			"sprite": s, "base": seat[0], "row": seat[1],
+			"sprite": s, "base": s.position, "row": seat[1],
 			"offset": Vector2.ZERO, "vel": Vector2.ZERO,
 			"stiff": randf_range(160.0, 240.0), "mood_time": 0.0,
 		})
@@ -160,7 +162,7 @@ func eject(into: Node, bus_velocity: Vector2) -> void:
 
 
 func _set_mood(r: Dictionary, mood: Mood, duration := 0.0) -> void:
-	r.sprite.frame = r.row * 3 + mood
+	r.sprite.frame = mood if r.row == DRIVER_ROW else r.row * 3 + mood
 	r.mood_time = duration
 
 

@@ -37,6 +37,16 @@ var _blocker_hinted := false
 var _arrival := ""  # "", "drive", "brake": scripted roll-in before the countdown
 
 static var bot_report: Array = []
+static var bot_retries := 0
+
+var _resume := {}  # checkpoint we're restarting from (empty = fresh start)
+var _retries := 0  # checkpoint retries used on this run
+var _style := {"flips": 0, "close": 0, "air": 0.0}
+var _air_now := 0.0
+var _spin_acc := 0.0
+var _comet := false
+var _speed_lines: Control
+var _cp_passed := -INF
 
 
 func _ready() -> void:
@@ -45,15 +55,22 @@ func _ready() -> void:
 		if a.begins_with("--level=") and bot_report.is_empty():
 			GameState.current_level = int(a.substr(8))
 	_bot = "--bot" in _args or "--botall" in _args
+	if _bot and bot_retries == 0:
+		GameState.checkpoint = {}
 	_skip_intro = "--botall" in _args
 	index = GameState.current_level
 	def = Levels.get_level(index)
+	if GameState.checkpoint.get("level", -1) == index:
+		_resume = GameState.checkpoint.duplicate(true)
+		_cp_passed = _resume.x
 	world = World.new().build(def.biome, def.segments)
 	add_child(world)
 	world.fuel_collected.connect(func(_c): if bus: bus.passengers.chatter(["YUM, GAS!", "REFUEL!", "GLUG GLUG"].pick_random(), "voice_happy"))
 	world.life.birds_flushed.connect(_on_birds)
 	var start := world.terrain.start_position()
-	if _skip_intro:
+	if not _resume.is_empty():
+		start = Vector2(_resume.x, world.terrain.surface_y(_resume.x) - 31)
+	if _skip_intro or not _resume.is_empty():
 		bus = world.spawn_bus(start, def.fuel)
 	else:  # roll in from off-screen, then stop at the line
 		bus = world.spawn_bus(start + Vector2(-560, 0), def.fuel, Vector2(260, 0))
@@ -63,6 +80,15 @@ func _ready() -> void:
 		world.camera.target = _anchor
 		world.camera.snap()
 	bus.ammo = def.get("ammo", 3)
+	if not _resume.is_empty():
+		bus.fuel = _resume.fuel
+		bus.ammo = _resume.ammo
+		clock = _resume.clock
+		landings.assign(_resume.landings)
+		cleared = _resume.cleared
+		_style = _resume.get("style", _style).duplicate()
+		_retries = _resume.get("retries", 0) + 1
+		GameState.checkpoint.retries = _retries
 	world.set_weather(def.get("weather", ""))
 	bus.headwind = world.weather.headwind if world.weather else 0.0
 	_hook_bus()
@@ -80,7 +106,7 @@ func _hook_bus() -> void:
 
 func _intro() -> void:
 	state = State.INTRO
-	if not _skip_intro:
+	if not _skip_intro and _resume.is_empty():
 		bus.controls_enabled = true
 		_arrival = "drive"
 		Audio.play("vroom", -2.0)
@@ -91,7 +117,10 @@ func _intro() -> void:
 		bus.controls_enabled = false
 		world.camera.target = bus.chassis
 		bus.passengers.event("start")
-	var card := _label(_hud.layer, "%s  %s" % [Levels.code(index), def.title], Vector2(0, 90), 16, Color("#ffcc26"), 4)
+	var card_text := "%s  %s" % [Levels.code(index), def.title]
+	if not _resume.is_empty():
+		card_text = "CHECKPOINT"
+	var card := _label(_hud.layer, card_text, Vector2(0, 90), 16, Color("#ffcc26"), 4)
 	card.size.x = 480
 	card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var blurb := _label(_hud.layer, def.blurb, Vector2(0, 114), 8, Color.WHITE, 2)
@@ -106,7 +135,7 @@ func _intro() -> void:
 	if not is_inside_tree(): return
 	for n in [card, blurb, gaps_l]:
 		n.queue_free()
-	if not _skip_intro:
+	if not _skip_intro and _resume.is_empty():
 		for c in ["3", "2", "1"]:
 			_big_center(c, Color.WHITE)
 			Audio.play("count_beep", -4.0)
@@ -123,6 +152,8 @@ func _intro() -> void:
 func _physics_process(delta: float) -> void:
 	if _arrival != "" and is_instance_valid(bus):
 		_drive_in()
+	if _comet and is_instance_valid(bus):
+		_comet_step(delta)
 	if state != State.PLAY or not is_instance_valid(bus) or bus.chassis == null:
 		return
 	clock += delta
@@ -143,12 +174,18 @@ func _physics_process(delta: float) -> void:
 	if not gap.is_empty() and c.global_position.y > gap.trigger_y:
 		bus.hazard(gap.kind, Vector2(x, gap.liquid_y))
 		return
+	_track_style(delta)
 	if x > world.terrain.finish_x:
-		_win()
+		# Soaring past the finish in the top half of the screen = comet exit.
+		var screen_y := (get_viewport().get_canvas_transform() * c.global_position).y
+		_win("--comet" in _args or (bus.airborne and screen_y < get_viewport().get_visible_rect().size.y * 0.5))
 		return
+	for cx in world.terrain.checkpoints:
+		if x > cx and cx > _cp_passed:
+			_reach_checkpoint(cx)
 	if _bot:
 		_bot_drive()
-		if clock > 60.0:
+		if clock > 240.0:
 			_bot_done("FAILED", "timeout: stuck at x=%d speed=%d" % [x, bus.get_speed()])
 			state = State.FAILED
 			return
@@ -193,6 +230,35 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # --- Events -------------------------------------------------------------------
 
+## Flips, big air and close calls, for Technique and the score.
+func _track_style(delta: float) -> void:
+	var c := bus.chassis
+	if bus.airborne:
+		_air_now += delta
+		_spin_acc += c.angular_velocity * delta
+		if absf(_spin_acc) >= TAU * 0.92:
+			_spin_acc -= signf(_spin_acc) * TAU
+			_style.flips += 1
+			Fx.float_text(c.global_position + Vector2(0, -60), "FLIP!", Color.WHITE, 16, true)
+			Audio.play("jingle_good", -4.0)
+			bus.passengers.driver_say(["WOOHOO!", "DID YOU SEE THAT?!", "I MEANT TO DO THAT!"].pick_random(), true)
+	elif _air_now > 0.0:
+		if _air_now > 2.0:
+			Fx.float_text(c.global_position + Vector2(0, -70), "BIG AIR %.1fs!" % _air_now, Color("#3cf0dc"), 8)
+		_style.air = maxf(_style.air, _air_now)
+		_air_now = 0.0
+		_spin_acc = 0.0
+
+
+func _reach_checkpoint(cx: float) -> void:
+	_cp_passed = cx
+	GameState.checkpoint = {"level": index, "x": cx, "fuel": bus.fuel, "ammo": bus.ammo, "clock": clock,
+		"landings": landings.duplicate(), "cleared": cleared, "retries": _retries, "style": _style.duplicate()}
+	Audio.play("star", -4.0)
+	Fx.float_text(bus.chassis.global_position + Vector2(0, -60), "CHECKPOINT!", Color("#3cf0dc"), 16)
+	bus.passengers.driver_say(["HALFWAY THERE!", "KEEP IT TOGETHER!", "STILL IN ONE PIECE!"].pick_random())
+
+
 func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 	if state != State.PLAY:
 		return
@@ -203,6 +269,10 @@ func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 		if x > g.x1:
 			now_cleared += 1
 	if now_cleared > cleared:
+		var g: Dictionary = world.terrain.gaps[now_cleared - 1]
+		if x - g.x1 < 75.0:  # landed right on the lip
+			_style.close += 1
+			Fx.float_text(bus.chassis.global_position + Vector2(0, -60), "CLOSE ONE!", Color("#ff9a2e"), 16)
 		cleared = now_cleared
 		_hud.gaps.text = "GAPS %d/%d" % [cleared, world.terrain.gaps.size()]
 		Audio.play("gap_cleared", -6.0)
@@ -272,35 +342,133 @@ func _drive_in() -> void:
 			_arrival = ""
 
 
-func _win() -> void:
+## Level end. Airborne and high on screen = COMET EXIT (cutscene, grade floor C,
+## big bonus); otherwise the computer drives off-screen. Then freeze frame + report.
+func _win(comet := false) -> void:
 	state = State.WON
-	# The computer takes the wheel and drives off-screen while the camera pulls back.
-	bus.ai_input = {"right": 0.9, "fire": false}
-	world.camera.target = null
-	world.camera.zoom_override = 0.72
 	bus.passengers.react("perfect")
 	bus.passengers.event("finish")
 	Audio.play("level_clear", -2.0)
 	Audio.play("cheer", -6.0)
-	Audio.music("music_results")
-	_big_center("BUS STOP!", Color("#ffcc26"))
-	var fuel_left := bus.fuel
+	_style.air = maxf(_style.air, _air_now)
+	var report := _finish_report(comet)
+	GameState.checkpoint = {}
+	var showcase := "--showcase" in _args  # bot plays the real ending, nothing is saved
+	if _bot and not showcase:  # the tester bot must never touch the player's save
+		_bot_done("WON", "grade=%s spd=%d tech=%d fuel=%d landings=%s time=%.1f par=%.0f%s" % [report.grade,
+				report.speed, report.technique, bus.fuel, landings, clock, report.par, " COMET" if comet else ""])
+		return
+	if not _bot:
+		GameState.record(index, report.score, report.stars, report.grade)
+	if comet:
+		_start_comet()
+	else:
+		# The computer takes the wheel and drives off-screen while the camera pulls back.
+		bus.ai_input = {"right": 0.9, "fire": false}
+		world.camera.target = null
+		world.camera.zoom_override = 0.72
+		Audio.music("music_results")
+		_big_center("BUS STOP!", Color("#ffcc26"))
+	await get_tree().create_timer(3.4 if comet else 2.6).timeout
+	if not is_inside_tree(): return
+	_freeze_and_report(report)
+
+
+func _finish_report(comet: bool) -> Dictionary:
+	var par := Grading.par_time(world.terrain.finish_x)
+	var speed := Grading.speed_stars(clock, par)
+	var tech := Grading.technique_stars(landings, _retries, _style)
+	var bonus := Grading.style_bonus(_style)
+	var grade := Grading.grade(speed, tech, bonus, comet, _retries)
 	var score := 0
 	for g in landings:
 		score += POINTS.get(g, 0)
-	var par: float = world.terrain.finish_x / 230.0
-	var time_bonus := maxi(0, int((par - clock) * 50))
-	score += int(fuel_left * 10) + time_bonus
-	var hard := landings.count("hard")
-	var perfect := landings.count("perfect")
-	var stars := 1 + int(hard == 0) + int(perfect * 2 >= maxi(1, landings.size()))
-	if _bot:  # the tester bot must never touch the player's save
-		_bot_done("WON", "fuel=%d landings=%s time=%.1f" % [fuel_left, landings, clock])
-		return
-	GameState.record(index, score, stars)
-	await get_tree().create_timer(2.6).timeout
-	if not is_inside_tree(): return
-	_show_results(score, stars, fuel_left, time_bonus)
+	score += int(bus.fuel * 10) + maxi(0, int((par - clock) * 50))
+	score += _style.flips * 750 + _style.close * 400 + int(_style.air * 100) + (2500 if comet else 0)
+	return {
+		"code": Levels.code(index), "title": def.title, "time": clock, "par": par, "landings": landings.duplicate(),
+		"style": _style.duplicate(), "fuel_pct": int(bus.fuel / bus.fuel_capacity * 100), "retries": _retries,
+		"speed": speed, "technique": tech, "grade": grade, "score": score, "comet": comet,
+		"stars": int(round((speed + tech) / 2.0)), "last": index + 1 >= Levels.count(),
+	}
+
+
+## The bus keeps sailing like a comet: no gravity, climbing, heating up red-hot.
+func _start_comet() -> void:
+	_comet = true
+	for b in [bus.chassis] + Array(bus.wheels):
+		b.gravity_scale = 0.0
+		b.collision_mask = 0
+	bus.ai_input = {"right": 0.0, "fire": false}
+	bus._set_flames(true)
+	world.camera.zoom_override = 0.6
+	Audio.music("music_comet", 0.2)
+	Audio.play("comet_whoosh", 0.0)
+	bus.passengers.driver_say("WE'RE NOT COMING BACK!", true, true)
+	_big_center("COMET EXIT!", Color("#ff9a2e"))
+	create_tween().tween_property(bus._skin, "modulate", Color(1.7, 0.95, 0.55), 1.6)
+	var trail := CPUParticles2D.new()
+	trail.amount = 160
+	trail.lifetime = 0.9
+	trail.local_coords = false
+	trail.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	trail.emission_rect_extents = Vector2(40, 18)
+	trail.direction = Vector2.LEFT
+	trail.spread = 12.0
+	trail.gravity = Vector2.ZERO
+	trail.initial_velocity_min = 60.0
+	trail.initial_velocity_max = 160.0
+	trail.scale_amount_min = 2.0
+	trail.scale_amount_max = 5.0
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.2, 0.55, 1.0])
+	g.colors = PackedColorArray([Color(1, 1, 0.9), Color(1, 0.8, 0.3), Color(1, 0.35, 0.1, 0.8), Color(0.4, 0.1, 0.1, 0)])
+	trail.color_ramp = g
+	bus.chassis.add_child(trail)
+	trail.emitting = true
+	var glow := PointLight2D.new()
+	glow.texture = preload("res://assets/sprites/light_radial.png")
+	glow.color = Color(1, 0.6, 0.25)
+	glow.energy = 2.2
+	glow.texture_scale = 5.0
+	bus.chassis.add_child(glow)
+	_speed_lines = Control.new()
+	_speed_lines.size = Vector2(480, 270)
+	_speed_lines.draw.connect(_draw_speed_lines)
+	_hud.layer.add_child(_speed_lines)
+
+
+func _comet_step(delta: float) -> void:
+	var c := bus.chassis
+	c.linear_velocity = c.linear_velocity.lerp(Vector2(780, -260), 1.0 - exp(-1.5 * delta))
+	c.angular_velocity = angle_difference(c.rotation, c.linear_velocity.angle()) * 4.0
+	bus._animate_flames(delta)
+	if _speed_lines:
+		_speed_lines.queue_redraw()
+
+
+func _draw_speed_lines() -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	for i in 26:
+		var y := fmod(i * 37.0, 270.0)
+		var x := fposmod(480.0 - (t * 900.0 + i * 131.0), 560.0) - 40
+		_speed_lines.draw_line(Vector2(x, y), Vector2(x + 30 + (i % 3) * 14, y), Color(1, 0.9, 0.7, 0.35), 1.0)
+
+
+## Freeze frame: the world stops, a flash, and the Trip Report slides in.
+func _freeze_and_report(report: Dictionary) -> void:
+	get_tree().paused = true
+	var flash := ColorRect.new()
+	flash.color = Color(1, 1, 1, 0.8)
+	flash.size = Vector2(480, 270)
+	_hud.layer.add_child(flash)
+	var tw := create_tween()
+	tw.tween_property(flash, "color:a", 0.0, 0.35)
+	tw.tween_callback(flash.queue_free)
+	Audio.play("stamp", -6.0)
+	var card := TripReport.new().setup(report)
+	_hud.layer.add_child(card)
+	card.chosen.connect(_on_menu_choice)
 
 
 func _fail(kind: String, reason := "") -> void:
@@ -350,14 +518,16 @@ func _bot_drive() -> void:
 			var y_at_lip: float = p.y + v.y * t_lip + g * 0.5 * t_lip * t_lip
 			var clears: bool = y_at_lip < next.land_y - 42 or p.x > next.x1
 			fire = p.x + v.x * t < next.x1 + 130 or not clears or not bus.airborne
+			if not clears and bus.airborne:
+				target_angle = -0.3  # too low for the far lip: nose up so the rocket lifts
 	if bus.airborne:
 		var err := wrapf(c.rotation - target_angle, -PI, PI)
 		right = -clampf(err * 2.0 + c.angular_velocity * 2.5, -1.0, 1.0)  # + = nose down
 	var shoot := false
 	for o in world.obstacles:  # blast blockers in the way
-		if is_instance_valid(o) and (o.is_blocker() or o.kind == "barrel"):
+		if is_instance_valid(o) and o.is_blocker():
 			var ahead: float = o.global_position.x - p.x
-			if ahead > 0 and ahead < 420 and not bus.airborne:
+			if ahead > 0 and ahead < 520 and absf(wrapf(c.rotation, -PI, PI)) < 0.45:
 				shoot = true
 	bus.ai_input = {"right": right, "fire": fire and not "--norocket" in _args, "shoot": shoot}
 	if "--trace" in _args and Engine.get_physics_frames() % 6 == 0:
@@ -366,12 +536,26 @@ func _bot_drive() -> void:
 
 
 func _bot_done(result: String, detail: String) -> void:
+	if result == "FAILED" and not GameState.checkpoint.is_empty() and bot_retries < 2:
+		bot_retries += 1
+		print("BOT   %s retry %d from checkpoint (%s)" % [Levels.code(index), bot_retries, detail.get_slice(" ", 0)])
+		await get_tree().create_timer(0.3).timeout
+		get_tree().change_scene_to_file("res://scenes/level.tscn")
+		return
+	if bot_retries > 0:
+		detail += " (checkpoint retries: %d)" % bot_retries
+	bot_retries = 0
+	GameState.checkpoint = {}
 	if not _skip_intro:  # single showcase run: let the finish play out
 		await get_tree().create_timer(3.5).timeout
 	var line := "%s %-16s %s  %s" % [Levels.code(index), def.title, result, detail]
 	print("BOT ", line)
 	bot_report.append(line)
-	if "--botall" in _args and index + 1 < Levels.count():
+	var bot_end := Levels.count()
+	for a in _args:  # --botend=N stops a --botall batch before level N
+		if a.begins_with("--botend="):
+			bot_end = int(a.substr(9))
+	if "--botall" in _args and index + 1 < bot_end:
 		GameState.current_level = index + 1
 		await get_tree().create_timer(0.3).timeout
 		if not is_inside_tree(): return
@@ -473,7 +657,11 @@ func _toggle_pause() -> void:
 	get_tree().paused = true
 	Audio.play("ui_back", -6.0)
 	_pause_panel = _panel("PAUSED", Color("#3cf0dc"))
-	_pause_menu = MenuList.new().setup([["resume", "RESUME"], ["retry", "RESTART"], ["menu", "QUIT TO MENU"]], 8, 18)
+	var entries := [["resume", "RESUME"]]
+	if not GameState.checkpoint.is_empty():
+		entries.append(["retry", "RETRY CHECKPOINT"])
+	entries.append_array([["restart", "RESTART LEVEL"], ["menu", "QUIT TO MENU"]])
+	_pause_menu = MenuList.new().setup(entries, 8, 16)
 	_pause_menu.position = Vector2(240, 110)
 	_pause_panel.add_child(_pause_menu)
 	_pause_menu.chosen.connect(_on_menu_choice)
@@ -484,43 +672,13 @@ func _show_retry(reason: String) -> void:
 	var line := _label(_end_panel, "GAPS CLEARED %d/%d" % [cleared, world.terrain.gaps.size()], Vector2(110, 86), 8, Color.WHITE, 2)
 	line.size.x = 260
 	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var menu := MenuList.new().setup([["retry", "TRY AGAIN"], ["menu", "MENU"]], 8, 18)
+	var has_cp := not GameState.checkpoint.is_empty()
+	var entries := [["retry", "RETRY FROM CHECKPOINT" if has_cp else "TRY AGAIN"]]
+	if has_cp:
+		entries.append(["restart", "RESTART LEVEL"])
+	entries.append(["menu", "MENU"])
+	var menu := MenuList.new().setup(entries, 8, 16)
 	menu.position = Vector2(240, 140)
-	_end_panel.add_child(menu)
-	menu.chosen.connect(_on_menu_choice)
-
-
-func _show_results(score: int, stars: int, fuel_left: float, time_bonus: int) -> void:
-	_end_panel = _panel("BUS STOP!", Color("#ffcc26"))
-	var rows := [
-		["TIME", "%.1fs" % clock],
-		["LANDINGS", "%dP %dG %dH" % [landings.count("perfect"), landings.count("good"), landings.count("hard")]],
-		["FUEL LEFT", "%d%%" % int(fuel_left / bus.fuel_capacity * 100)],
-		["TIME BONUS", str(time_bonus)],
-	]
-	for i in rows.size():
-		_label(_end_panel, rows[i][0], Vector2(126, 84 + i * 12), 8, Color("#d8f8ff"), 2)
-		var v := _label(_end_panel, rows[i][1], Vector2(250, 84 + i * 12), 8, Color.WHITE, 2)
-		v.size.x = 104
-		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	var score_l := _label(_end_panel, "SCORE 0", Vector2(110, 136), 16, Color("#7dff6a"), 4)
-	score_l.size.x = 260
-	score_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var tw := create_tween()
-	tw.tween_method(_set_score.bind(score_l), 0, score, 1.0)
-	for i in 3:
-		var star := _label(_end_panel, "*", Vector2(196 + i * 32, 158), 16, Color("#ffcc26") if i < stars else Color(1, 1, 1, 0.2), 4)
-		star.pivot_offset = Vector2(8, 8)
-		star.scale = Vector2.ZERO
-		tw.tween_property(star, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK)
-		if i < stars:
-			tw.tween_callback(Audio.play.bind("star", -4.0, 1.0 + i * 0.12))
-	var last := index + 1 >= Levels.count()
-	var entries := [["next", "NEXT LEVEL"], ["retry", "RETRY"], ["menu", "MENU"]]
-	if last:
-		entries = [["menu", "YOU BEAT THE GAME!"], ["retry", "RETRY"]]
-	var menu := MenuList.new().setup(entries, 8, 13)
-	menu.position = Vector2(240, 180)
 	_end_panel.add_child(menu)
 	menu.chosen.connect(_on_menu_choice)
 
@@ -541,9 +699,13 @@ func _on_menu_choice(id: String) -> void:
 		"next":
 			GameState.current_level = index + 1
 			Transition.go("res://scenes/level.tscn")
-		"retry":
+		"retry":  # from the last checkpoint, if there is one
+			Transition.go("res://scenes/level.tscn")
+		"restart":
+			GameState.checkpoint = {}
 			Transition.go("res://scenes/level.tscn")
 		"menu":
+			GameState.checkpoint = {}
 			Transition.go("res://scenes/main_menu.tscn")
 
 

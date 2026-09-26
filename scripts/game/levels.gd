@@ -1,171 +1,176 @@
 class_name Levels
-## The 20 levels: 5 worlds x 4. Segment format is documented in terrain.gd.
-## Gap dy is relative to the road before the ramp (negative = land higher).
+## The 24 levels: 6 worlds x 4. Each level is a short recipe; `_build` turns it into
+## a long course (see terrain.gd for the segment format). The same recipe always
+## builds the same course (seeded by the title), so tuning = editing numbers here.
 
 const WORLDS := ["DESERT", "JUNGLE", "MOUNTAINS", "SNOW", "VOLCANO", "MOON"]
 ## The ramp alone carries the bus ~200px, so every gap gets this much extra to make the rocket matter.
 const GAP_EXTRA := 100.0
 
+# title, biome, blurb, jumps, gap kinds, gap length range, landing-height range (+-px),
+# fuel tank, options (blockers, zone "mud"/"ice", weather)
+const RECIPES := [
+	["FIRST DAY", "desert", "Hold the rocket off the ramp. Land flat.", 3, ["chasm"], [170, 210], 0, 100, {"blockers": false}],
+	["OASIS HOP", "desert", "Don't feed the bus to the oasis.", 4, ["water", "chasm"], [190, 240], 0, 100, {"blockers": false}],
+	["DOUBLE TROUBLE", "desert", "Crates, boulders, gaps. One tank.", 5, ["chasm", "water"], [210, 260], 20, 100, {}],
+	["MESA LEAP", "desert", "Sandstorm. The far sides get higher.", 6, ["chasm"], [220, 280], 40, 100, {"weather": "sandstorm"}],
+	["RIVER RUN", "jungle", "Rivers, bugs, and one very nervous driver.", 5, ["water", "swamp"], [220, 270], 20, 100, {"weather": "rain"}],
+	["SWAMP THING", "jungle", "Something lives in that swamp.", 6, ["swamp", "water"], [230, 280], 30, 100, {"zone": "mud"}],
+	["CANOPY CHASE", "jungle", "Mud, rain, monkeys.", 6, ["chasm", "water", "swamp"], [240, 290], 40, 100, {"zone": "mud", "weather": "rain"}],
+	["TEMPLE DROP", "jungle", "Nose down for the downhill landings.", 7, ["chasm", "swamp"], [250, 300], 60, 100, {"zone": "mud"}],
+	["SWITCHBACK", "mountain", "Up, over, and down the mountain.", 6, ["chasm", "water"], [240, 290], 40, 100, {}],
+	["GOAT PATH", "mountain", "Bumpy road in the rain. Hold it steady.", 7, ["chasm"], [250, 300], 40, 100, {"weather": "rain"}],
+	["EAGLE'S NEST", "mountain", "Big air. Bigger gaps.", 7, ["chasm", "water"], [250, 300], 50, 110, {}],
+	["SUMMIT RUN", "mountain", "Eight gaps to the top of the world.", 8, ["chasm"], [260, 310], 50, 110, {"weather": "rain"}],
+	["FIRST FROST", "snow", "Icy roads. Brake early.", 6, ["ice", "chasm"], [240, 290], 40, 100, {"zone": "ice"}],
+	["FROZEN LAKE", "snow", "Don't test the ice.", 7, ["ice"], [250, 300], 50, 110, {"zone": "ice"}],
+	["AVALANCHE ALLEY", "snow", "Blizzard. Can't see a thing.", 8, ["ice", "chasm"], [250, 300], 50, 120, {"zone": "ice", "weather": "blizzard"}],
+	["POLAR EXPRESS", "snow", "The heater is broken.", 8, ["ice", "chasm"], [250, 300], 50, 140, {"zone": "ice", "weather": "blizzard"}],
+	["HOT FOOT", "volcano", "The floor is lava. Literally.", 7, ["lava", "chasm"], [280, 340], 50, 110, {}],
+	["MAGMA MILE", "volcano", "Don't touch the orange stuff.", 8, ["lava"], [290, 350], 60, 110, {}],
+	["ASH CLOUD", "volcano", "Can't see. Can't stop.", 8, ["lava", "chasm"], [260, 320], 60, 130, {"weather": "ash"}],
+	["THE LAST STOP", "volcano", "Nine gaps. Everyone off at the last stop.", 9, ["lava", "chasm"], [270, 320], 60, 120, {"weather": "ash"}],
+	["ONE SMALL HOP", "moon", "Low gravity. Easy on the rocket.", 5, ["chasm"], [480, 620], 40, 70, {}],
+	["CRATER HOPPER", "moon", "Craters everywhere. Float between them.", 6, ["chasm"], [520, 680], 50, 65, {}],
+	["DARK SIDE", "moon", "Nobody's out here to see you crash.", 7, ["chasm"], [560, 740], 60, 60, {}],
+	["EARTHRISE", "moon", "The last stop is 238,900 miles from home.", 8, ["chasm"], [600, 800], 70, 60, {}],
+]
+const SMASHABLES := {
+	"desert": ["crate", "cone", "fence", "barrel", "mailbox"], "jungle": ["crate", "fence", "barrel"],
+	"mountain": ["crate", "cone", "fence", "barrel"], "snow": ["crate", "cone", "fence"],
+	"volcano": ["barrel", "barrel", "crate"], "moon": ["crate", "barrel"],
+}
+const BLOCKERS := {
+	"desert": ["boulder", "barricade"], "jungle": ["log", "boulder"], "mountain": ["boulder", "log"],
+	"snow": ["log", "barricade"], "volcano": ["boulder", "barricade"], "moon": ["boulder"],
+}
+const CHECKPOINT_EVERY := 3  ## jumps between checkpoints
+const FUEL_EVERY := 2  ## jumps between fuel cans
+
+static var _cache: Array = []
+
 
 static func count() -> int:
-	return all().size()
+	return RECIPES.size()
 
 
 static func get_level(i: int) -> Dictionary:
-	return all()[clampi(i, 0, count() - 1)]
+	if _cache.is_empty():
+		for k in RECIPES.size():
+			_cache.append(_build(k, RECIPES[k]))
+	return _cache[clampi(i, 0, count() - 1)]
 
 
 static func code(i: int) -> String:
 	return "%d-%d" % [i / 4 + 1, i % 4 + 1]
 
 
-static func all() -> Array:
-	return [
-		# --- World 1: Desert ----------------------------------------------------------
-		_lvl("FIRST DAY", "desert", 100, "Hold the rocket off the ramp. Land flat.", [
-			_f(700), _j(150, 50, 200, "chasm"), _f(600), _end()], false),
-		_lvl("OASIS HOP", "desert", 100, "Don't feed the bus to the oasis.", [
-			_f(500), _h(300, 16), _f(300), _j(150, 50, 240, "water"), _f(500), _end()], false),
-		_lvl("DOUBLE TROUBLE", "desert", 100, "Two gaps. One tank. Save some fuel.", [
-			_f(300), _o("boulder"), _f(420), _j(140, 45, 220, "chasm"), _f(450), _fuel(), _f(100),
-			_j(150, 50, 260, "water"), _f(400), _end()]),
-		_lvl("MESA LEAP", "desert", 100, "The far side is higher. Burn longer.", [
-			_f(400), _s(300, -50), _f(300), _j(150, 55, 240, "chasm", -20), _f(400), _h(300, 20),
-			_j(140, 50, 260, "chasm", 30), _f(400), _end()]),
-		# --- World 2: Jungle -------------------------------------------------------------
-		_lvl("RIVER RUN", "jungle", 100, "Rivers, bugs, and one very nervous driver.", [
-			_f(500), _h(400, 14, 2), _j(150, 50, 260, "water"), _f(400),
-			_j(140, 45, 240, "swamp"), _f(400), _end()]),
-		_lvl("SWAMP THING", "jungle", 100, "Something lives in that swamp.", [
-			_f(300), _o("log"), _f(400), _j(130, 45, 230, "swamp"), _f(120), _mud(180), _f(50), _s(300, 40), _f(200),
-			_j(150, 55, 280, "swamp", -20), _f(400), _end()]),
-		_lvl("CANOPY CHASE", "jungle", 100, "Three gaps under the canopy.", [
-			_f(400), _j(140, 50, 240, "chasm"), _f(300), _fuel(), _h(300, 20),
-			_j(140, 50, 260, "water"), _f(300), _j(150, 55, 280, "swamp"), _f(400), _end()]),
-		_lvl("TEMPLE DROP", "jungle", 100, "Nose down for the downhill landing.", [
-			_f(400), _s(400, -80), _j(150, 55, 320, "chasm", 60), _s(300, 40), _f(300),
-			_j(140, 50, 260, "water"), _f(250), _j(140, 50, 280, "swamp", -30), _f(400), _end()]),
-		# --- World 3: Mountains ----------------------------------------------------------
-		_lvl("SWITCHBACK", "mountain", 100, "Up, over, and down the mountain.", [
-			_f(300), _o("boulder"), _f(300), _s(400, -90), _f(200), _j(150, 55, 280, "chasm"), _f(300), _s(300, 60), _f(140),
-			_j(140, 50, 260, "water"), _f(300), _j(150, 50, 260, "chasm", -40), _f(400), _end()]),
-		_lvl("GOAT PATH", "mountain", 100, "Bumpy road. Hold it steady.", [
-			_f(300), _h(400, 16, 2), _f(120), _j(150, 55, 300, "chasm", -25), _f(250), _fuel(), _f(80),
-			_j(140, 50, 280, "chasm", 50), _s(300, 50), _f(250), _j(150, 55, 300, "water"), _f(400), _end()]),
-		_lvl("EAGLE'S NEST", "mountain", 110, "Big air. Bigger gaps.", [
-			_f(400), _s(500, -140), _f(150), _j(160, 60, 360, "chasm"), _f(250),
-			_j(150, 55, 320, "chasm", 60), _f(300), _j(150, 55, 300, "chasm"), _f(400), _end()]),
-		_lvl("SUMMIT RUN", "mountain", 110, "Four gaps to the top of the world.", [
-			_f(350), _j(150, 55, 280, "chasm", -40), _f(250), _j(150, 55, 300, "water"), _f(200), _fuel(),
-			_s(300, -60), _j(160, 60, 340, "chasm", 40), _f(250), _j(150, 55, 300, "chasm"), _f(400), _end()]),
-		# --- World 4: Snow ----------------------------------------------------------------
-		_lvl("FIRST FROST", "snow", 100, "Icy roads. Brake early.", [
-			_f(250), _ice(200), _f(50), _j(150, 50, 240, "ice"), _f(400), _j(150, 50, 260, "chasm"), _f(400),
-			_j(150, 50, 260, "ice"), _f(400), _end()]),
-		_lvl("FROZEN LAKE", "snow", 110, "Don't test the ice.", [
-			_f(300), _o("barricade"), _f(400), _s(300, 40), _j(150, 55, 320, "ice"), _f(300), _fuel(), _f(80),
-			_j(140, 50, 280, "ice", -30), _f(300), _h(300, 16), _j(150, 55, 300, "chasm"), _f(250),
-			_j(150, 50, 260, "ice"), _f(400), _end()]),
-		_lvl("AVALANCHE ALLEY", "snow", 110, "Downhill run-ups. Fast and scary.", [
-			_f(300), _s(400, 100), _j(150, 55, 340, "chasm"), _f(250), _j(150, 55, 300, "ice", -30),
-			_f(250), _s(300, 60), _j(160, 60, 360, "chasm"), _f(250), _j(150, 55, 300, "ice"), _f(400), _end()]),
-		_lvl("POLAR EXPRESS", "snow", 120, "Five gaps. The heater is broken.", [
-			_f(300), _j(150, 55, 300, "ice"), _f(200), _j(150, 55, 320, "chasm", -40), _f(250), _fuel(),
-			_f(80), _j(160, 60, 340, "ice"), _f(200), _j(150, 55, 320, "chasm", 40), _s(200, 30), _f(250),
-			_j(160, 60, 360, "ice"), _f(400), _end()]),
-		# --- World 5: Volcano ------------------------------------------------------------
-		_lvl("HOT FOOT", "volcano", 110, "The floor is lava. Literally.", [
-			_f(300), _o("boulder"), _f(400), _j(150, 50, 260, "lava"), _f(300), _j(150, 50, 280, "chasm"), _f(300),
-			_j(150, 55, 300, "lava"), _f(250), _j(150, 55, 300, "lava"), _f(400), _end()]),
-		_lvl("MAGMA MILE", "volcano", 110, "Don't touch the orange stuff.", [
-			_f(350), _h(300, 20), _j(150, 55, 320, "lava"), _f(250), _fuel(), _f(80),
-			_j(150, 55, 320, "lava", -40), _f(250), _j(160, 60, 340, "chasm"), _f(250),
-			_j(150, 55, 320, "lava", 40), _f(400), _end()]),
-		_lvl("ASH CLOUD", "volcano", 120, "Can't see. Can't stop.", [
-			_f(300), _s(400, -100), _j(160, 60, 360, "lava"), _f(200), _j(150, 55, 340, "lava", 50),
-			_f(200), _fuel(), _f(80), _j(150, 55, 320, "chasm"), _f(200), _j(160, 60, 360, "lava"), _f(200),
-			_j(150, 55, 320, "lava"), _f(400), _end()]),
-		_lvl("THE LAST STOP", "volcano", 120, "Six gaps. Everyone off at the last stop.", [
-			_f(300), _j(150, 55, 320, "lava"), _f(200), _j(150, 55, 340, "chasm", -40), _f(200), _fuel(),
-			_f(80), _j(160, 60, 360, "lava"), _f(200), _j(150, 55, 340, "lava", 40), _s(200, 30), _fuel(),
-			_f(80), _j(160, 60, 380, "lava"), _f(200), _j(160, 60, 400, "lava"), _f(500), _end()]),
-		# --- World 6: Moon (40% gravity: long, floaty jumps) -------------------------
-		_lvl("ONE SMALL HOP", "moon", 70, "Low gravity. Easy on the rocket.", [
-			_f(500), _j(150, 45, 610, "chasm"), _f(500), _end()]),
-		_lvl("CRATER HOPPER", "moon", 60, "Craters everywhere. Float between them.", [
-			_f(400), _j(150, 45, 670, "chasm"), _f(400), _h(400, 24, 2), _j(150, 50, 750, "chasm", -30),
-			_f(500), _end()]),
-		_lvl("DARK SIDE", "moon", 60, "Nobody's out here to see you crash.", [
-			_f(400), _j(150, 50, 750, "chasm"), _f(350), _fuel(), _f(100), _j(160, 55, 870, "chasm", 40),
-			_f(400), _j(150, 50, 810, "chasm", -40), _f(500), _end()]),
-		_lvl("EARTHRISE", "moon", 60, "The last stop is 238,900 miles from home.", [
-			_f(400), _j(150, 50, 810, "chasm"), _f(300), _j(160, 55, 900, "chasm", -40), _f(300), _fuel(),
-			_f(100), _j(160, 55, 960, "chasm", 40), _f(300), _j(170, 60, 1040, "chasm"), _f(600), _end()]),
-	]
-
-
-const SMASHABLES := {
-	"desert": ["crate", "cone", "fence", "barrel", "mailbox"], "jungle": ["crate", "fence", "barrel"],
-	"mountain": ["crate", "cone", "fence", "barrel"], "snow": ["crate", "cone", "fence"],
-	"volcano": ["barrel", "barrel", "crate"], "moon": ["crate", "barrel"],
-}
-const WEATHER := {
-	"MESA LEAP": "sandstorm", "RIVER RUN": "rain", "CANOPY CHASE": "rain", "GOAT PATH": "rain",
-	"SUMMIT RUN": "rain", "AVALANCHE ALLEY": "blizzard", "POLAR EXPRESS": "blizzard",
-	"ASH CLOUD": "ash", "THE LAST STOP": "ash",
-}
-const BLOCKERS := {
-	"desert": ["boulder", "barricade"], "jungle": ["log", "boulder"], "mountain": ["boulder", "log"],
-	"snow": ["log", "barricade"], "volcano": ["boulder", "barricade"], "moon": ["boulder"],
-}
-
-
-static func _lvl(title: String, biome: String, fuel: float, blurb: String, segs: Array,
-		blockers := true) -> Dictionary:
-	var flat := []
-	for s in segs:
-		if s is Array:
-			flat.append_array(s)
-		else:
-			flat.append(s)
-	flat = _sprinkle(flat, biome, title, blockers)
-	var ammo := 3
-	for s in flat:
-		if s.t == "obj" and s.kind in BLOCKERS.get(biome, []):
-			ammo += Obstacle.KINDS[s.kind].hp
-	return {"title": title, "biome": biome, "fuel": fuel, "blurb": blurb, "segments": flat, "ammo": ammo,
-		"weather": WEATHER.get(title, "")}
-
-
-## Puts road clutter on long flat stretches: smashables everywhere, and (after the
-## first levels) a blocker you must shoot. Deterministic per level title.
-static func _sprinkle(segs: Array, biome: String, title: String, blockers: bool) -> Array:
+## Turns a recipe into segments: an opening straight, then for each jump a varied run
+## (hills, climbs/descents, mud/ice, clutter, a blocker to shoot), a flat run-up, the
+## ramp and gap, and a landing strip; checkpoints every few jumps; a finish straight.
+static func _build(index: int, r: Array) -> Dictionary:
+	var title: String = r[0]
+	var biome: String = r[1]
+	var jumps: int = r[3]
+	var kinds: Array = r[4]
+	var gap_range: Array = r[5]
+	var dy_range: float = r[6]
+	var opts: Dictionary = r[8]
+	var blockers: bool = opts.get("blockers", true)
+	var zone: String = opts.get("zone", "")
+	var difficulty := clampf(index / 23.0, 0.0, 1.0)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(title)
+
+	var segs: Array = [_f(700 if index == 0 else 500)]
+	var height := 0.0  # rough road height, kept within bounds
+	var blocker_count := 0
+	for j in jumps:
+		# The run between jumps: 2-4 varied pieces.
+		for k in rng.randi_range(2, 4):
+			var roll := rng.randf()
+			if roll < 0.3:
+				segs.append(_f(rng.randf_range(220, 480)))
+			elif roll < 0.55:
+				# Bumps must be long and gentle enough for a 100px bus: >= 300px per wave.
+				var hill_len := rng.randf_range(300, 620)
+				var waves := 2 if hill_len >= 600 else 1
+				var amp := minf(8 + 22 * difficulty * rng.randf(), hill_len / waves / 16.0)
+				segs.append(_h(hill_len, amp, waves))
+			elif roll < 0.8:
+				var dy := rng.randf_range(30, 40 + 70 * difficulty)
+				if height < -200 or (height < 150 and rng.randf() < 0.5):
+					dy = absf(dy)  # downhill
+				else:
+					dy = -absf(dy)
+				height += dy
+				segs.append(_s(rng.randf_range(300, 420), dy))
+			elif zone != "":
+				segs.append(_f(80))
+				segs.append({"t": zone, "len": rng.randf_range(160, 280)})
+			else:
+				segs.append(_f(rng.randf_range(260, 420)))
+		if blockers and j % 2 == 1:
+			var kind: String = BLOCKERS[biome][rng.randi() % BLOCKERS[biome].size()]
+			segs.append(_f(500))  # a long flat approach so there's time to aim and shoot
+			segs.append(_o(kind))
+			segs.append(_f(260))
+			blocker_count += Obstacle.KINDS[kind].hp
+			if blocker_count >= 3:
+				segs.append({"t": "ammo"})
+				blocker_count = 0
+		# Long, hard levels get a can before every jump; early ones every other jump.
+		if j > 0 and (index >= 8 or j % FUEL_EVERY == 0):
+			segs.append(_f(120))
+			segs.append(_fuel())
+		# Flat run-up, then the jump. Never straight off mud/ice: the bus needs to get up to speed.
+		if segs[-1].t in ["mud", "ice"]:
+			segs.append(_f(300))
+		segs.append(_f(rng.randf_range(380, 520)))
+		var gap_len := rng.randf_range(gap_range[0], gap_range[1])
+		# Far sides can drop a lot but only rise a little (rising landings are brutal).
+		var land_dy := 0.0 if dy_range <= 0 else rng.randf_range(-minf(dy_range, 30.0), dy_range)
+		height += land_dy
+		segs.append_array(_j(rng.randf_range(140, 170), rng.randf_range(45, 60), gap_len, kinds[rng.randi() % kinds.size()], land_dy))
+		segs.append(_f(rng.randf_range(420, 560)))  # landing strip
+		if (j + 1) % CHECKPOINT_EVERY == 0 and j < jumps - 1:
+			segs.append({"t": "checkpoint"})
+			segs.append(_f(200))
+	segs.append(_f(400))
+	segs.append(_end())
+
+	segs = _sprinkle(segs, biome, title)
+	# Enough slugs for every blocker, plus spares for shooting barrels.
+	var ammo := 3
+	var barrels := 0
+	for s in segs:
+		if s.t == "obj" and Obstacle.KINDS[s.kind].blocker:
+			ammo += Obstacle.KINDS[s.kind].hp
+		elif s.t == "obj" and s.kind == "barrel":
+			barrels += 1
+	ammo += barrels / 2
+	return {"title": title, "biome": biome, "fuel": float(r[7]), "blurb": r[2], "segments": segs,
+		"ammo": mini(ammo, 14), "weather": opts.get("weather", "")}
+
+
+## Road clutter on long flat stretches (deterministic per level title).
+static func _sprinkle(segs: Array, biome: String, title: String) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(title) + 1
 	var out := []
-	var eligible := 0
 	for i in segs.size():
 		var s: Dictionary = segs[i]
-		var next_is_ramp: bool = i + 1 < segs.size() and segs[i + 1].t == "ramp"
-		if s.t != "flat" or s.len < 260 or i == 0 or (i + 1 < segs.size() and segs[i + 1].t == "finish"):
+		var before_ramp: bool = i + 1 < segs.size() and segs[i + 1].t == "ramp"
+		var before_blocker: bool = i + 1 < segs.size() and segs[i + 1].t == "obj"  # keep the line of fire clear
+		if s.t != "flat" or s.len < 260 or i == 0 or before_ramp or before_blocker or rng.randf() < 0.35:
 			out.append(s)
 			continue
-		eligible += 1
-		var after_jump: bool = segs[i - 1].t == "gap"
-		var blocker: bool = blockers and eligible % 2 == 0 and not next_is_ramp and not after_jump and s.len >= 380
-		# Blockers sit deep into the stretch so there's time to see and shoot them.
-		var a: float = s.len * (0.7 if blocker else 0.45)
+		var a: float = s.len * 0.45
 		out.append({"t": "flat", "len": a})
-		if blocker:
-			out.append({"t": "obj", "kind": BLOCKERS[biome][rng.randi() % BLOCKERS[biome].size()]})
-		else:
-			var pool: Array = SMASHABLES[biome]
-			for k in rng.randi_range(1, 3):
-				out.append({"t": "obj", "kind": pool[rng.randi() % pool.size()]})
-				out.append({"t": "flat", "len": 14})
-		if eligible % 3 == 0:
-			out.append({"t": "flat", "len": 40})
-			out.append({"t": "ammo"})
+		var pool: Array = SMASHABLES[biome]
+		for k in rng.randi_range(1, 3):
+			out.append({"t": "obj", "kind": pool[rng.randi() % pool.size()]})
+			out.append({"t": "flat", "len": 14})
 		out.append({"t": "flat", "len": s.len - a})
 	return out
 
@@ -185,14 +190,6 @@ static func _s(length: float, dy: float) -> Dictionary:
 static func _j(ramp_len: float, rise: float, gap_len: float, kind: String, dy := 0.0) -> Array:
 	return [{"t": "ramp", "len": ramp_len, "rise": rise},
 		{"t": "gap", "len": gap_len + GAP_EXTRA, "kind": kind, "dy": dy}]
-
-
-static func _mud(length: float) -> Dictionary:
-	return {"t": "mud", "len": length}
-
-
-static func _ice(length: float) -> Dictionary:
-	return {"t": "ice", "len": length}
 
 
 static func _o(kind: String) -> Dictionary:

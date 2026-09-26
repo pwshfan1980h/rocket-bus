@@ -14,7 +14,7 @@ var _from := Vector2.INF  # first raycast starts here (inside the bus) so point-
 
 func fire(at: Vector2, dir: Vector2, inherit: Vector2, from := Vector2.INF) -> Slug:
 	position = at
-	velocity = dir * SPEED + inherit * 0.5
+	velocity = dir * SPEED + Vector2(inherit.x * 0.5, 0)  # forward speed only: shots fly flat
 	_from = from
 	return self
 
@@ -33,6 +33,8 @@ func _physics_process(delta: float) -> void:
 	if hit:
 		var node: Node = hit.collider
 		var obstacle := node.get_parent() as Obstacle
+		if "--trace" in OS.get_cmdline_user_args():
+			print("SLUG hit %s at %s (obstacle=%s)" % [node.name, hit.position, obstacle.kind if obstacle else "-"])
 		if obstacle:
 			obstacle.damage(1, velocity.normalized())
 		else:

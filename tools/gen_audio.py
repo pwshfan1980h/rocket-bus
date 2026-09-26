@@ -563,6 +563,43 @@ def amb_moon_loop():
     return loopify([a * 0.5 + b * 0.3 + c * 0.2 for a, b, c in zip(hum, hum2, air)], 0.3)
 
 
+def cha_ching():
+    """Cash register: drawer clunk + bright bell."""
+    x = silence(1.2)
+    mix(x, env(lowpass(noise(0.08, 701), 1200), decay(0.02)), 0, 0.8)
+    mix(x, clank(), 0.02, 0.4)
+    for f, a in ((2093, 1.0), (2637, 0.7), (3136, 0.5), (4186, 0.35)):
+        mix(x, env(osc(f, 1.0), decay(0.35)), 0.12, a * 0.35)
+    for i in range(6):  # coins
+        mix(x, env(osc(3500 + i * 250, 0.08), decay(0.02)), 0.18 + i * 0.05, 0.15)
+    return x
+
+
+def sigh():
+    """Disappointed crowd exhale."""
+    x = silence(1.3)
+    rng = random.Random(711)
+    for _ in range(5):
+        v = voice(lambda t, p=rng.uniform(0.8, 1.2): (300 - 140 * min(1, t / 0.9)) * p, 1.0, (500, 900), rng.randint(0, 99))
+        mix(x, v, rng.uniform(0, 0.15), 0.5)
+    breath = env(bandpass(noise(1.2, 712), 300, 2000), adsr(0.1, 0.3, 0.5, 0.6, 1.2))
+    return mix(x, breath, 0, 0.4)
+
+
+def stamp():
+    """Grade stamp slamming onto the card."""
+    thump = env(osc(lambda t: 120 * math.exp(-t * 12) + 50, 0.4), decay(0.08))
+    return mix(thump, env(lowpass(noise(0.15, 721), 2500), decay(0.03)), 0, 0.7)
+
+
+def comet_whoosh():
+    dur = 2.5
+    n = bandpass(noise(dur, 731), lambda t: 300 + 2500 * min(1, t / 1.2), 7000)
+    roar = lowpass(brown(dur, 732), 400)
+    x = [a * 0.7 + b * 0.8 for a, b in zip(n, roar)]
+    return env(x, adsr(0.3, 0.5, 0.8, 0.8, dur))
+
+
 def cheer():
     x = silence(1.3)
     rng = random.Random(7)
@@ -955,6 +992,7 @@ MUSIC = {
     "music_volcano": (160, 48, "phrygian", [0, 1, 0, 6], "metal", 6),
     "music_results": (118, 60, "major", [0, 5, 3, 4], "chill", 7),
     "music_moon": (96, 50, "dorian", [0, 5, 3, 6], "snow", 8),
+    "music_comet": (168, 57, "major", [0, 4, 5, 3], "anthem", 9),
 }
 
 
@@ -966,7 +1004,7 @@ SFX = [
     amb_jungle_loop, amb_mountain_loop, amb_snow_loop, amb_volcano_loop, amb_city_loop,
     jingle_perfect, jingle_good, sting_hard, sting_crash, ui_move, ui_select, ui_back, ui_start,
     count_beep, count_go, gap_cleared, star, score_tick, level_clear, fail_jingle, title_slam,
-    typewriter, rain_loop, thunder, sandstorm_loop, blizzard_loop, mud_splash, monkey_screech,
+    typewriter, cha_ching, sigh, stamp, comet_whoosh, rain_loop, thunder, sandstorm_loop, blizzard_loop, mud_splash, monkey_screech,
     goat_bleat, penguin_squawk, snake_hiss, bat_squeak, vulture_caw, amb_moon_loop, cannon, explosion, wood_break, rock_break, plastic_bonk, ammo_pickup,
 ]
 

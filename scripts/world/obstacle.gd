@@ -12,9 +12,9 @@ const KINDS := {
 	"fence": {"size": Vector2(28, 12), "hp": 1, "blocker": false, "color": "#c8a070", "sound": "wood_break"},
 	"mailbox": {"size": Vector2(6, 14), "hp": 1, "blocker": false, "color": "#3a6ad0", "sound": "clank"},
 	"barrel": {"size": Vector2(10, 14), "hp": 1, "blocker": false, "color": "#d0302a", "sound": "explosion", "explosive": true},
-	"boulder": {"size": Vector2(30, 26), "hp": 3, "blocker": true, "color": "#7a7280", "sound": "rock_break"},
+	"boulder": {"size": Vector2(30, 26), "hp": 2, "blocker": true, "color": "#7a7280", "sound": "rock_break"},
 	"log": {"size": Vector2(54, 12), "hp": 2, "blocker": true, "color": "#6a4428", "sound": "wood_break"},
-	"barricade": {"size": Vector2(40, 22), "hp": 2, "blocker": true, "color": "#e8e0d0", "sound": "wood_break"},
+	"barricade": {"size": Vector2(40, 22), "hp": 1, "blocker": true, "color": "#e8e0d0", "sound": "wood_break"},
 }
 const LAYER_BLOCKER := 16
 const LAYER_SMASH := 32

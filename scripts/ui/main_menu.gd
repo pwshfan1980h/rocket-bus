@@ -73,6 +73,7 @@ func _on_choice(id: String) -> void:
 		menu.active = false  # no double-triggering while the screen fades out
 	match id:
 		"start":
+			GameState.checkpoint = {}
 			GameState.current_level = GameState.unlocked - 1
 			Transition.go("res://scenes/level.tscn")
 		"select":
