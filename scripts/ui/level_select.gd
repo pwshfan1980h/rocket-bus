@@ -2,9 +2,9 @@ extends Control
 ## 5 worlds x 4 levels. Arrows/WASD + Enter, or click. Esc goes back.
 ## U unlocks everything (handy while testing).
 
-const BIOME_OF := ["desert", "jungle", "mountain", "snow", "volcano", "moon"]
-const CELL := Vector2(66, 26)
-const ORIGIN := Vector2(98, 38)
+const BIOME_OF := ["desert", "jungle", "mountain", "snow", "volcano", "moon", "border"]
+const CELL := Vector2(66, 22)
+const ORIGIN := Vector2(98, 36)
 
 var sel := 0
 var _cells: Array[Dictionary] = []
@@ -29,6 +29,8 @@ func _ready() -> void:
 		_text(Levels.WORLDS[w], Vector2(8, ORIGIN.y + w * CELL.y + 9), 8, Color("#3cf0dc"), 2, 90).horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		for l in 4:
 			var i := w * 4 + l
+			if i >= Levels.count():
+				break
 			var pos := ORIGIN + Vector2(l * (CELL.x + 6), w * CELL.y)
 			var box := ColorRect.new()
 			box.position = pos
@@ -37,7 +39,7 @@ func _ready() -> void:
 			box.gui_input.connect(_on_cell_input.bind(i))
 			add_child(box)
 			var code := _text(Levels.code(i), pos + Vector2(0, 4), 8, Color.WHITE, 2, CELL.x)
-			var stars := _text("", pos + Vector2(0, 13), 8, Color("#ffcc26"), 2, CELL.x)
+			var stars := _text("", pos + Vector2(0, 11), 8, Color("#ffcc26"), 2, CELL.x)
 			_cells.append({"box": box, "code": code, "stars": stars})
 	_info_title = _text("", Vector2(0, 202), 8, Color("#ffcc26"), 2, 480)
 	_info_blurb = _text("", Vector2(0, 216), 8, Color.WHITE, 2, 480)
@@ -72,7 +74,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if move != Vector2i.ZERO:
 		var col := clampi(sel % 4 + move.x, 0, 3)
 		var row := clampi(sel / 4 + move.y, 0, BIOME_OF.size() - 1)
-		sel = row * 4 + col
+		sel = mini(row * 4 + col, Levels.count() - 1)
 		Audio.play("ui_move", -8.0)
 		_refresh()
 

@@ -600,6 +600,18 @@ def comet_whoosh():
     return env(x, adsr(0.3, 0.5, 0.8, 0.8, dur))
 
 
+def amb_border_loop():
+    dur = 4.3
+    warble = osc(lambda t: 140 + 30 * math.sin(TAU * t / dur * 2) + 8 * math.sin(t * 13), dur + 0.3, "triangle")
+    hum = osc(70, dur + 0.3)
+    x = [a * 0.35 + b * 0.4 for a, b in zip(bandpass(warble, 100, 900), hum)]
+    rng = random.Random(801)
+    for _ in range(18):  # alien chirps
+        f0 = rng.uniform(900, 2400)
+        mix(x, env(osc(lambda t, f0=f0: f0 * (1 + 0.5 * math.sin(t * 40)), 0.2), decay(0.07)), rng.uniform(0, dur - 0.3), 0.08)
+    return loopify(x, 0.3)
+
+
 def cheer():
     x = silence(1.3)
     rng = random.Random(7)
@@ -993,6 +1005,7 @@ MUSIC = {
     "music_results": (118, 60, "major", [0, 5, 3, 4], "chill", 7),
     "music_moon": (96, 50, "dorian", [0, 5, 3, 6], "snow", 8),
     "music_comet": (168, 57, "major", [0, 4, 5, 3], "anthem", 9),
+    "music_border": (88, 50, "phrygian", [0, 1, 6, 1], "snow", 10),
 }
 
 
@@ -1005,7 +1018,7 @@ SFX = [
     jingle_perfect, jingle_good, sting_hard, sting_crash, ui_move, ui_select, ui_back, ui_start,
     count_beep, count_go, gap_cleared, star, score_tick, level_clear, fail_jingle, title_slam,
     typewriter, cha_ching, sigh, stamp, comet_whoosh, rain_loop, thunder, sandstorm_loop, blizzard_loop, mud_splash, monkey_screech,
-    goat_bleat, penguin_squawk, snake_hiss, bat_squeak, vulture_caw, amb_moon_loop, cannon, explosion, wood_break, rock_break, plastic_bonk, ammo_pickup,
+    goat_bleat, penguin_squawk, snake_hiss, bat_squeak, vulture_caw, amb_moon_loop, amb_border_loop, cannon, explosion, wood_break, rock_break, plastic_bonk, ammo_pickup,
 ]
 
 

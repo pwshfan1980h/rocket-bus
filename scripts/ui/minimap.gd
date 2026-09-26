@@ -31,6 +31,22 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
+## Red "!!" (or orange "!") warning marker above a hazard.
+func _bang(p: Vector2, count: int) -> void:
+	var col := Color("#ff3b4e") if count > 1 else Color("#ff9a2e")
+	for k in count:
+		var x := p.x - count + k * 3
+		draw_rect(Rect2(x, p.y - 10, 2, 5), col)
+		draw_rect(Rect2(x, p.y - 4, 2, 2), col)
+
+
+## Little red jerry can for fuel.
+func _gas_can(p: Vector2) -> void:
+	draw_rect(Rect2(p.x - 2, p.y - 7, 5, 6), Color("#ff4040"))
+	draw_rect(Rect2(p.x - 1, p.y - 8, 2, 1), Color("#d8d8e0"))
+	draw_rect(Rect2(p.x + 1, p.y - 8, 2, 1), Color("#303038"))
+
+
 func _draw() -> void:
 	if not is_instance_valid(bus) or bus.chassis == null:
 		return
@@ -72,17 +88,17 @@ func _draw() -> void:
 		if is_instance_valid(o) and o.global_position.x > x0 and o.global_position.x < x0 + span:
 			var p: Vector2 = to_screen.call(o.global_position.x, o.global_position.y)
 			if o.is_blocker():
-				draw_rect(Rect2(p.x - 1.5, p.y - 5, 3, 5), Color("#ff3b4e"))
+				_bang(p, 2)  # "!!" = something you must shoot or shove
 			elif o.kind == "barrel":
-				draw_rect(Rect2(p.x - 1, p.y - 3, 2, 3), Color("#ff9a2e"))
+				_bang(p, 1)
 	for p0 in terrain.pickups:
 		if p0.x > x0 and p0.x < x0 + span:
-			var p: Vector2 = to_screen.call(p0.x, p0.y)
-			draw_rect(Rect2(p.x - 1, p.y - 1, 2, 2), Color("#ff5a5a"))
+			_gas_can(to_screen.call(p0.x, p0.y + 30))
 	for p0 in terrain.ammo_spots:
 		if p0.x > x0 and p0.x < x0 + span:
-			var p: Vector2 = to_screen.call(p0.x, p0.y)
-			draw_rect(Rect2(p.x - 1, p.y - 1, 2, 2), Color("#b8e060"))
+			var p: Vector2 = to_screen.call(p0.x, p0.y + 30)
+			draw_rect(Rect2(p.x - 2, p.y - 5, 5, 4), Color("#6a7a3a"))
+			draw_rect(Rect2(p.x - 1, p.y - 6, 3, 1), Color("#e8c060"))
 	if terrain.finish_x > x0 and terrain.finish_x < x0 + span:
 		var p: Vector2 = to_screen.call(terrain.finish_x, terrain.surface_y(terrain.finish_x))
 		draw_rect(Rect2(p.x, p.y - 8, 1, 8), Color.WHITE)

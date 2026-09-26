@@ -183,11 +183,20 @@ func _explode() -> void:
 	q.collision_mask = 2 | 4 | 8
 	for hit in get_world_2d().direct_space_state.intersect_shape(q, 32):
 		var b := hit.collider as RigidBody2D
-		if b:
-			var dir := (b.global_position - at).normalized()
-			# The bus gets a hard jolt, not a guaranteed flip; loose bits go flying.
-			var strength := 0.35 if b.get_parent() is Bus else 1.0
-			b.apply_central_impulse((dir * 320.0 + Vector2(0, -160)) * b.mass * strength)
+		if b == null:
+			continue
+		var dir := (b.global_position - at).normalized()
+		var bus := b.get_parent() as Bus
+		if bus:
+			# The bus gets one small jolt per chain reaction, never a launch.
+			var now := Time.get_ticks_msec()
+			if b != bus.chassis or now - int(bus.get_meta("last_blast", -99999)) < 400:
+				continue
+			bus.set_meta("last_blast", now)
+			b.apply_central_impulse(Vector2(signf(dir.x) * 40.0, -70.0) * b.mass)
+			b.apply_torque_impulse(randf_range(-300.0, 300.0))
+		else:  # loose debris and ragdolls go flying
+			b.apply_central_impulse((dir * 320.0 + Vector2(0, -160)) * b.mass)
 	for o in get_tree().get_nodes_in_group("obstacles"):
 		if o != self and o.global_position.distance_to(at) < BLAST_RADIUS:
 			o.call_deferred("damage", 99, (o.global_position - at).normalized())

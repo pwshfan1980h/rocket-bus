@@ -46,6 +46,12 @@ func _ready() -> void:
 			layer.buildings = _city(rng, spec.h)
 		if spec.kind == "volcanoes":
 			layer.craters = _pending_craters
+		if spec.kind == "islands":
+			layer.islands = []
+			var ix := 0.0
+			while ix < LOOP:
+				layer.islands.append({"x": ix, "y": rng.randf_range(-40, 40), "w": rng.randf_range(24, 70)})
+				ix += rng.randf_range(70, 160)
 		_layers.append(layer)
 
 
@@ -64,6 +70,9 @@ func _draw() -> void:
 		var scroll := fposmod(center.x * layer.parallax, LOOP)
 		if layer.kind == "city":
 			_draw_city(layer, base, scroll)
+		elif layer.kind == "islands":
+			_draw_islands(layer, base, scroll)
+			continue  # floating: nothing below them but void
 		else:
 			_draw_heights(layer, base, scroll)
 		draw_rect(Rect2(0, base, SIZE.x, SIZE.y - base + 1), layer.color)
@@ -102,6 +111,12 @@ func _draw_sky(horizon: float, cam_x: float) -> void:
 		if sun.get("moon", false):
 			for crater in [Vector3(-4, -3, 3), Vector3(5, 4, 2), Vector3(2, -7, 1.5)]:
 				draw_circle(c + Vector2(crater.x, crater.y), crater.z, Color(0.7, 0.74, 0.88))
+	if biome.get("nebula", false):
+		for k in 5:  # slow swirling bands of green and violet
+			for x in range(0, int(SIZE.x), 3):
+				var y := 40 + k * 34 + sin(x * 0.012 + _time * 0.15 + k) * 22 + sin(x * 0.031 - _time * 0.1) * 9
+				var col := Color(0.3, 0.9, 0.6, 0.07) if k % 2 == 0 else Color(0.6, 0.3, 0.9, 0.06)
+				draw_rect(Rect2(x, y, 3, 18 + k * 4), col)
 	if biome.get("earth", false):
 		_draw_earth(Vector2(360, 58), 20.0)
 	for cl in _clouds:
@@ -147,6 +162,21 @@ func _draw_heights(layer: Dictionary, base: float, scroll: float) -> void:
 			draw_rect(Rect2(x, base - h * 0.55, COL, 3), layer.stripe)
 	if layer.kind == "volcanoes":
 		_draw_volcano_fx(layer, base, scroll)
+
+
+func _draw_islands(layer: Dictionary, base: float, scroll: float) -> void:
+	for isl in layer.islands:
+		var x := fposmod(isl.x - scroll, LOOP) - 60
+		if x > SIZE.x + 60:
+			continue
+		var y: float = base - layer.h * 1.6 + isl.y + sin(_time * 0.4 + isl.x) * 3.0
+		var w: float = isl.w
+		var pts := PackedVector2Array([Vector2(x, y), Vector2(x + w * 0.2, y - 4), Vector2(x + w * 0.7, y - 5),
+			Vector2(x + w, y), Vector2(x + w * 0.75, y + w * 0.25), Vector2(x + w * 0.5, y + w * 0.55),
+			Vector2(x + w * 0.3, y + w * 0.2)])
+		draw_colored_polygon(pts, layer.color)
+		draw_rect(Rect2(x + w * 0.2, y - 5, w * 0.5, 2), layer.color.lightened(0.25))
+		draw_rect(Rect2(x + w * 0.45, y + w * 0.5, 3, 3), Color(0.4, 1.0, 0.7, 0.5))  # glowing underside
 
 
 func _draw_volcano_fx(layer: Dictionary, base: float, scroll: float) -> void:

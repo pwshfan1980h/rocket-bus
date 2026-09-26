@@ -18,7 +18,7 @@ extends Node2D
 
 const SHADER := preload("res://assets/shaders/terrain.gdshader")
 const RUNWAY := 700.0  # road behind the start line (the bus drives in from here)
-const DEPTH := 700.0
+const DEPTH := 2600.0  ## ground goes far down so falling never shows sky under the level
 const LIQUIDS := ["water", "swamp", "ice", "lava"]
 
 var biome: Dictionary
@@ -72,6 +72,8 @@ func build(segments: Array, biome_name: String) -> Terrain:
 				_cur_ramps.append(r)
 				signs.append(Vector2(x0 - 150, base))
 			"gap":
+				if _cur_ramps.is_empty() or _cur_ramps[-1].lip_x != _x:
+					signs.append(Vector2(_x - 150, _y))  # a drop-off (no ramp) still gets a warning sign
 				_close_island()
 				var lip_y := _y
 				var land_y: float = _road_y + seg.get("dy", 0.0)
@@ -217,8 +219,18 @@ func _build_nodes() -> void:
 		var bottom := road_bottom + DEPTH
 		var body := Polygon2D.new()
 		var poly := ground.duplicate()
-		poly.append(Vector2(isl.x1, bottom))
-		poly.append(Vector2(isl.x0, bottom))
+		if biome.get("floating", false):
+			bottom = road_bottom + 40.0
+			var span: float = isl.x1 - isl.x0
+			var steps := maxi(4, int(span / 30.0))
+			for k in range(steps, -1, -1):  # rocky underside, deepest in the middle
+				var t := float(k) / steps
+				var x: float = lerpf(isl.x0, isl.x1, t)
+				var depth := 20.0 + (1.0 - absf(t - 0.5) * 2.0) * minf(220.0, span * 0.25) + float((k * 37) % 17)
+				poly.append(Vector2(x, _line_y(ground, x) + depth))
+		else:
+			poly.append(Vector2(isl.x1, bottom))
+			poly.append(Vector2(isl.x0, bottom))
 		body.polygon = poly
 		if Geometry2D.triangulate_polygon(poly).is_empty():
 			push_warning("terrain body triangulation failed: island %d..%d, %d pts" % [isl.x0, isl.x1, poly.size()])
@@ -356,6 +368,8 @@ func _draw_ramp(n: Node2D, r: Dictionary) -> void:
 
 
 func _draw_gap_walls(node: Node2D) -> void:
+	if biome.get("floating", false):
+		return  # nothing between floating islands but the void
 	var g: Dictionary = biome.ground
 	for gap in gaps:
 		var top := minf(gap.road_y, gap.land_y) + 14.0

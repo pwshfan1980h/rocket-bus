@@ -83,9 +83,9 @@ func _ready() -> void:
 		_buzz.max_distance = 260.0
 		add_child(_buzz)
 		_buzz.play()
-	for kind in ["snow", "ash", "embers", "dust", "fireflies"]:
+	for kind in ["snow", "ash", "embers", "dust", "fireflies", "spores"]:
 		if kind in _kinds:
-			var n: int = {"snow": 140, "ash": 60, "embers": 50, "dust": 40, "fireflies": 24}[kind]
+			var n: int = {"snow": 140, "ash": 60, "embers": 50, "dust": 40, "fireflies": 24, "spores": 70}[kind]
 			for i in n:
 				_flakes.append({"kind": kind, "p": Vector2(_rng.randf_range(-VIEW.x, VIEW.x), _rng.randf_range(-VIEW.y, VIEW.y)),
 					"s": _rng.randf_range(0.5, 1.0), "ph": _rng.randf() * TAU})
@@ -349,6 +349,8 @@ func _update_flakes(delta: float) -> void:
 				f.p += Vector2(sin(f.ph * 0.4) * 4 + 3, sin(f.ph * 0.7) * 3) * delta
 			"fireflies":
 				f.p += Vector2(sin(f.ph * 0.8) * 14, cos(f.ph * 1.1) * 10) * delta
+			"spores":
+				f.p += Vector2(sin(f.ph * 0.6) * 8, -14 * f.s) * delta
 		# Particles live in a box around the camera and wrap.
 		f.p.x = fposmod(f.p.x + VIEW.x, VIEW.x * 2) - VIEW.x
 		f.p.y = fposmod(f.p.y + VIEW.y, VIEW.y * 2) - VIEW.y
@@ -360,6 +362,10 @@ func _spawn_critters() -> void:
 	if "vultures" in _kinds:
 		for i in 3:
 			_critters.append({"kind": "vulture", "p": Vector2.ZERO, "ph": i * TAU / 3, "r": _rng.randf_range(70, 110)})
+	if "jellies" in _kinds:
+		for i in 6:
+			_critters.append({"kind": "jelly", "p": Vector2(_rng.randf_range(0, 900), -80), "v": Vector2.ZERO,
+				"ph": _rng.randf() * TAU})
 	if "bats" in _kinds:
 		for i in 10:
 			_critters.append({"kind": "bat", "p": Vector2(_rng.randf_range(0, 800), -120), "v": Vector2(60, 0),
@@ -408,6 +414,15 @@ func _update_critters(delta: float, bp: Vector2, bv: Vector2) -> void:
 				c.p += c.v * delta
 			"monkey":
 				_update_monkey(c, delta, bp)
+			"jelly":  # drifting, pulsing, shying away from the bus
+				c.ph += delta
+				if absf(c.p.x - _cam.x) > VIEW.x + 80:
+					c.p = _cam + Vector2(_rng.randf_range(-VIEW.x, VIEW.x), _rng.randf_range(-180, -60))
+				var acc := Vector2(sin(c.ph * 0.3) * 10, sin(c.ph * 1.2) * 18)
+				if c.p.distance_to(bp) < 140:
+					acc += (c.p - bp).normalized() * 160
+				c.v = (c.v + acc * delta).limit_length(40)
+				c.p += c.v * delta
 			_:
 				_update_ground_critter(c, delta, bp, bv)
 	_critters = _critters.filter(func(c): return c.get("alpha", 1.0) > 0.0)
@@ -478,6 +493,14 @@ func _draw_critters() -> void:
 				draw_line(p, p + Vector2(8, -3 - flap), col, 2.0)
 				draw_rect(Rect2(p.x - 2, p.y - 1, 4, 3), col)
 				draw_rect(Rect2(p.x + 2, p.y - 2, 2, 1), Color("#d8a0a0"))
+			"jelly":
+				var pulse := 1.0 + 0.2 * sin(c.ph * 3.0)
+				var col := Color(0.55, 1.0, 0.85, 0.75)
+				draw_arc(p, 5.0 * pulse, PI, TAU, 10, col, 2.0)
+				draw_line(p + Vector2(-5 * pulse, 0), p + Vector2(5 * pulse, 0), col, 1.0)
+				for k in 4:
+					var tx := p.x - 3 + k * 2
+					draw_line(Vector2(tx, p.y), Vector2(tx + sin(c.ph * 2.0 + k) * 2, p.y + 8), Color(col, 0.5), 1.0)
 			"bat":
 				var flap := sin(_time * 30.0 + c.ph) * 2.0
 				draw_line(p, p + Vector2(-3, -flap), Color("#140a0e"), 1.0)
@@ -600,3 +623,6 @@ func _draw_glow() -> void:
 				var a := maxf(0.0, sin(f.ph * 2.5))
 				glow.draw_circle(p, 1.2, Color(0.85, 1.0, 0.4, a))
 				glow.draw_circle(p, 3.0, Color(0.85, 1.0, 0.4, a * 0.2))
+			"spores":
+				var a := 0.4 + 0.4 * sin(f.ph * 2.0)
+				glow.draw_circle(p, 1.0 + f.s, Color(0.5, 1.0, 0.75, a))

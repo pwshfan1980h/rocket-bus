@@ -35,8 +35,8 @@ const SHELL := [  # drawn over the passengers
 	["lower_r", preload("res://assets/sprites/bus_lower_r.png"), Rect2(0, 22, 43, 20), 0.18],
 	["door", preload("res://assets/sprites/bus_door.png"), Rect2(43, 26, 10, 16), 0.06],
 	["lower_f", preload("res://assets/sprites/bus_lower_f.png"), Rect2(53, 22, 27, 20), 0.12],
-	["hood", preload("res://assets/sprites/bus_hood.png"), Rect2(80, 26, 18, 16), 0.15],
-	["bumper_f", preload("res://assets/sprites/bus_bumper_f.png"), Rect2(78, 42, 22, 4), 0.08],
+	["hood", preload("res://assets/sprites/bus_hood.png"), Rect2(80, 26, 16, 16), 0.15],
+	["bumper_f", preload("res://assets/sprites/bus_bumper_f.png"), Rect2(78, 36, 19, 10), 0.08],
 	["bumper_r", preload("res://assets/sprites/bus_bumper_r.png"), Rect2(0, 42, 5, 4), 0.03],
 	["fender_rear", preload("res://assets/sprites/bus_fender_rear.png"), Rect2(4, 34, 29, 12), 0.06],
 	["fender_front", preload("res://assets/sprites/bus_fender_front.png"), Rect2(60, 34, 29, 12), 0.06],
@@ -65,8 +65,8 @@ const LAYER_BUS := 2
 const LAYER_DEBRIS := 4
 const LAYER_BLOCKERS := 16  # boulders, logs, barricades (see Obstacle)
 const TEX_CANNON := preload("res://assets/sprites/cannon.png")
-const CANNON_POS := Vector2(47, 10)  # top-left of the 16x8 cannon sprite
-const MUZZLE := Vector2(64, 13.5)
+const CANNON_POS := Vector2(43, 8)  # top-left of the 16x8 cannon sprite
+const MUZZLE := Vector2(60, 11.5)
 
 @export_group("Body")
 @export var chassis_mass := 1.0
@@ -83,7 +83,7 @@ const MUZZLE := Vector2(64, 13.5)
 @export var rocket_thrust := 950.0
 @export var rocket_nose_lift := 900.0  ## low-mounted nozzles lift the nose a little
 @export var fuel_capacity := 100.0
-@export var fuel_burn_rate := 34.0
+@export var fuel_burn_rate := 24.0  ## ~40% more burn time than the original 34
 @export_group("Cannon")
 @export var cannon_cooldown := 0.35
 @export var cannon_recoil := 35.0
@@ -201,7 +201,9 @@ func _build_chassis() -> void:
 	var poly := CollisionPolygon2D.new()
 	poly.polygon = PackedVector2Array([
 		Vector2(-40, -21), Vector2(-38, -23), Vector2(38, -23), Vector2(40, -21),
-		Vector2(40, 4), Vector2(55, 8), Vector2(58, 10), Vector2(58, 18), Vector2(-40, 18),
+		# Snubbed nose with an angled underside (~45 deg up from the front wheel) so the
+		# bus rides onto ramps instead of digging its front corner in.
+		Vector2(40, 4), Vector2(52, 7), Vector2(56, 9), Vector2(56, 13), Vector2(46, 18), Vector2(-40, 18),
 	])
 	chassis.add_child(poly)
 	add_child(chassis)

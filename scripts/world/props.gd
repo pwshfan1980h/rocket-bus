@@ -47,6 +47,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if biome.get("floating", false):
+		queue_redraw()  # alien plants pulse and sway
 	for i in _blinkers.size():
 		_blinkers[i].energy = 1.2 if fmod(_time + i * 0.3, 1.0) < 0.5 else 0.15
 
@@ -133,6 +135,9 @@ func _draw() -> void:
 			"hydrant": _hydrant(p)
 			"warn": _warn(p)
 			"checkpoint": _checkpoint(p)
+			"alienplant": _alienplant(p, s)
+			"crystal": _crystal(p, s)
+			"stalk": _stalk(p, s, f)
 			"moonrock": _rock(p, s * 0.8)
 			"flag": _flag(p)
 			"lander": _lander(p, f)
@@ -273,6 +278,33 @@ func _hydrant(p: Vector2) -> void:
 	_r(p.x - 2, p.y - 8, 5, 8, Color("#d8303a"))
 	_r(p.x - 3, p.y - 5, 7, 2, Color("#d8303a"))
 	_r(p.x - 1, p.y - 9, 3, 1, Color("#f05060"))
+
+
+func _alienplant(p: Vector2, s: float) -> void:
+	var glow := 0.7 + 0.3 * sin(_time * 2.0 + p.x)
+	draw_line(p, p + Vector2(0, -14 * s), Color("#3a6a4a"), 2.0)
+	draw_circle(p + Vector2(0, -16 * s), 4 * s, Color(0.45, 1.0, 0.75, glow))
+	draw_circle(p + Vector2(0, -16 * s), 2 * s, Color(0.9, 1.0, 0.9, glow))
+	for k in [-1, 1]:
+		draw_line(p + Vector2(0, -5), p + Vector2(k * 6 * s, -9 * s), Color("#3a6a4a"), 1.0)
+
+
+func _crystal(p: Vector2, s: float) -> void:
+	for k in 3:
+		var h := (12 + k * 6) * s
+		var x := p.x + (k - 1) * 4
+		draw_colored_polygon(PackedVector2Array([Vector2(x - 2, p.y), Vector2(x + 2, p.y), Vector2(x, p.y - h)]),
+				Color("#b070ff").lightened(0.1 * k))
+
+
+func _stalk(p: Vector2, s: float, f: float) -> void:
+	var prev := p
+	for i in 12:
+		var t := i / 11.0
+		var q := p + Vector2(sin(t * 3.0 + _time * 0.8) * 5 * f, -t * 40 * s)
+		draw_line(prev, q, Color("#4a3a5a"), 2.0 - t)
+		prev = q
+	draw_circle(prev, 2.5, Color(1.0, 0.6, 0.9, 0.8 + 0.2 * sin(_time * 3.0)))
 
 
 func _checkpoint(p: Vector2) -> void:

@@ -136,6 +136,27 @@ const ALL := {
 		"chatter": ["ONE SMALL STEP...", "I'M FLOATING!", "IS THAT EARTH?", "WHY IS THE BUS FLOATY?",
 			"I CAN'T BREATHE! ...OH WAIT."],
 	},
+	# An alien border dimension (a nod to Half-Life's): floating islands in a green void.
+	"border": {
+		"title": "BORDERWORLD",
+		"sky": ["#040c0a", "#071811", "#0b2418", "#10321f", "#164028", "#1d5032", "#26603c"],
+		"sun": {"r": 0}, "nebula": true,
+		"stars": 0.9, "aurora": false,
+		"modulate": Color(0.72, 0.9, 0.84),
+		"layers": [
+			{"kind": "islands", "parallax": 0.03, "color": "#1a3a2e", "h": 60, "float": true},
+			{"kind": "islands", "parallax": 0.1, "color": "#132c24", "h": 50, "float": true},
+			{"kind": "islands", "parallax": 0.22, "color": "#0c1e18", "h": 40, "float": true},
+		],
+		"ground": {"road": "#2c2a3c", "edge": "#7ac8a0", "line": "", "shoulder": "#3a8a6a",
+			"body": ["#3a3048", "#2e2640", "#46385a", "#261e34"]},
+		"floating": true,
+		"decor": ["alienplant", "alienplant", "crystal", "stalk"], "fg": "",
+		"life": ["spores", "jellies"], "gravity": 0.75,
+		"music": "music_border", "ambience": "amb_border_loop", "friction": 0.9,
+		"chatter": ["WHERE ARE WE?!", "THE ROCKS ARE FLOATING!", "I DON'T LIKE THIS DIMENSION",
+			"IS THAT A JELLYFISH?", "TAKE ME HOME!", "WHO BROUGHT US HERE?"],
+	},
 }
 
 

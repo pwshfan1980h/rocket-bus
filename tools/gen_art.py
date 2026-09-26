@@ -193,15 +193,15 @@ def frame():
     c.rect(0, 40, 79, 40, STEEL)
     for x in range(3, 78, 6):
         c.set(x, 42, STEEL_L)
-    c.rect(80, 40, 97, 43, STEEL_D)  # rail runs under the hood
-    c.rect(80, 40, 97, 40, STEEL)
+    c.rect(80, 40, 86, 43, STEEL_D)  # rail runs under the hood (stops where the nose angles up)
+    c.rect(80, 40, 86, 40, STEEL)
     c.rect(82, 30, 93, 39, (70, 72, 84))  # engine block
     for x in range(83, 93, 3):
         c.rect(x, 28, x + 1, 30, STEEL)  # cylinder heads
     c.rect(82, 35, 93, 35, (50, 50, 60))
-    c.rect(94, 30, 96, 41, (120, 60, 50))  # radiator
-    for y in range(31, 41, 2):
-        c.set(95, y, (170, 90, 70))
+    c.rect(93, 30, 94, 35, (120, 60, 50))  # radiator
+    for y in range(31, 35, 2):
+        c.set(94, y, (170, 90, 70))
     cut_arches(c, STEEL_D)
     c.save("bus_frame.png")
 
@@ -294,28 +294,42 @@ def lower_panel():
     c.save("bus_lower.png")
 
 
+def hood_bottom(x):
+    """Underside of the snubbed nose: flat, then angled up toward the front
+    so the bus doesn't dig into ramps (matches the chassis collision shape)."""
+    return 41 if x < 86 else 41 - round((x - 86) * 0.55)
+
+
 def hood():
-    """School-bus nose: sloped hood, louvers, grille, headlight, black bumper."""
+    """Snubbed school-bus nose: sloped hood, louvers, grille, headlight."""
     c = Body()
-    for x in range(80, 97):
+    for x in range(80, 96):
         top = 26 + round((x - 80) * 5 / 16)  # hood slopes down toward the grille
-        c.rect(x, top, x, 41, YEL)
+        c.rect(x, top, x, hood_bottom(x), YEL)
         c.set(x, top, YEL_L)
     for x in range(84, 91, 2):  # louvers
         c.rect(x, 31, x, 35, YEL_D)
-    c.rect(80, 38, 96, 38, BLACK)  # rub rail
-    c.rect(97, 30, 98, 41, CHROME)  # grille
-    for y in range(31, 41, 2):
-        c.set(97, y, GRILLE)
-    c.rect(94, 32, 96, 34, HEADLIGHT)
-    c.set(94, 32, CHROME)
-    c.set(96, 36, AMBER)
-    c.rect(78, 42, 99, 45, BLACK)  # front bumper
-    c.rect(78, 42, 99, 42, FENDER_L)
-    c.rect(96, 43, 99, 44, CHROME)
+    c.rect(80, 37, 92, 37, BLACK)  # rub rail
+    c.rect(94, 30, 95, hood_bottom(95), CHROME)  # grille
+    for y in range(31, hood_bottom(95), 2):
+        c.set(94, y, GRILLE)
+    c.rect(91, 31, 93, 33, HEADLIGHT)
+    c.set(91, 31, CHROME)
+    c.set(93, 35, AMBER)
     cut_arches(c, ARCH)
     add_rust(c, 14, 35)
     c.save("bus_hood.png")
+
+
+def front_bumper():
+    """Black bumper following the angled underside of the nose."""
+    c = Body()
+    for x in range(78, 97):
+        b = hood_bottom(min(x, 95))
+        c.rect(x, b + 1, x, b + 3, BLACK)
+        c.set(x, b + 1, FENDER_L)
+    c.rect(94, hood_bottom(95) - 1, 96, hood_bottom(95) + 1, CHROME)
+    c.save("bus_bumper_f.png")
 
 
 def fenders():
@@ -633,7 +647,6 @@ def split_pieces():
     extract(lower, 0, 42, 4, 45).save("bus_bumper_r.png")
     extract(lower, 0, 22, 42, 45).save("bus_lower_r.png")
     lower.save("bus_lower_f.png")
-    extract(hood_c, 78, 42, 99, 45).save("bus_bumper_f.png")
     hood_c.save("bus_hood.png")
     extract(roof_c, 0, -7, 39, 3).save("bus_roof_r.png")
     roof_c.save("bus_roof_f.png")
@@ -641,7 +654,7 @@ def split_pieces():
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for fn in (frame, roof, roof_sign, upper_panel, lower_panel, hood, fenders, wheel, rocket, cannon,
+    for fn in (frame, roof, roof_sign, upper_panel, lower_panel, hood, front_bumper, fenders, wheel, rocket, cannon,
                flame, passengers, driver, axle, light_radial, light_cone):
         fn()
     split_pieces()

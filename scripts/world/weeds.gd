@@ -21,6 +21,7 @@ func _ready() -> void:
 		"DESERT": ["#b89a50", "#8a7a3a", "#c8b070"], "JUNGLE": ["#3aa048", "#2a7a3a", "#6ac050"],
 		"MOUNTAINS": ["#4a8a4a", "#6aa060", "#3a6a3a"], "SNOW": ["#8a8a7a", "#6a6a60"],
 		"VOLCANO": ["#4a3a30", "#5a4a3a"], "BAY CITY": ["#4a8a4a", "#3a6a3a"],
+		"BORDERWORLD": ["#3ac890", "#7a50c8", "#2a8a6a"],
 	}
 	var dense := {"JUNGLE": 3, "MOUNTAINS": 2, "DESERT": 1, "BAY CITY": 1, "SNOW": 1, "VOLCANO": 1}
 	var title: String = terrain.biome.title

@@ -217,9 +217,14 @@ func _teeter(delta: float) -> void:
 		bus.passengers.chatter(["WE'RE TEETERING!", "DON'T MOVE!", "UH OH..."].pick_random(), "voice_hurt")
 		Audio.play("creak_b", -4.0)
 	if _teeter_time > 1.4:
-		var back := bus.chassis.global_transform.x * -1.0
-		bus.chassis.apply_central_impulse((back * 90.0 + Vector2(0, 60)) * bus.chassis.mass)
-		bus.chassis.apply_torque_impulse(-2500.0)
+		# Tip toward the gap the wheel is hanging over (never fling the bus away).
+		var over := 0.0
+		for w in bus.wheels:
+			var g := world.terrain.gap_at(w.global_position.x)
+			if not g.is_empty():
+				over = signf((g.x0 + g.x1) / 2.0 - bus.chassis.global_position.x)
+		bus.chassis.apply_central_impulse(Vector2(over * 60.0, 40.0) * bus.chassis.mass)
+		bus.chassis.apply_torque_impulse(over * 1500.0)
 		_teeter_time = 0.0
 
 
@@ -522,6 +527,13 @@ func _bot_drive() -> void:
 			fire = p.x + v.x * t < next.x1 + 130 or not clears or not bus.airborne
 			if not clears and bus.airborne:
 				target_angle = -0.3  # too low for the far lip: nose up so the rocket lifts
+			var is_drop := true
+			for r in world.terrain.ramps:
+				if absf(r.lip_x - next.x0) < 2.0:
+					is_drop = false
+			if is_drop and bus.airborne and p.x < next.x1:
+				# Off a sheer edge the bus tips nose-down: hold the nose up while crossing.
+				target_angle = minf(target_angle, -0.12)
 	if bus.airborne:
 		var err := wrapf(c.rotation - target_angle, -PI, PI)
 		right = -clampf(err * 2.0 + c.angular_velocity * 2.5, -1.0, 1.0)  # + = nose down
