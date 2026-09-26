@@ -339,14 +339,14 @@ func _build_wheels() -> void:
 		_attach(spring, w)
 
 
-## Coilovers you can see working: drawn over the body but behind the tires, from
-## the hub up into the body, bunching and stretching with the real suspension.
+## Coilovers drawn behind the body and the tires: hidden by the bus, they only
+## show through the wheel arches, most when the suspension stretches out.
 func _build_springs() -> void:
 	var coils := Node2D.new()
 	coils.name = "Springs"
 	coils.draw.connect(_draw_springs.bind(coils))
 	add_child(coils)
-	move_child(coils, wheels[0].get_index())  # draw order: chassis, springs, wheels
+	move_child(coils, 0)  # draw order: springs, chassis (body), wheels
 	_springs_node = coils
 
 
