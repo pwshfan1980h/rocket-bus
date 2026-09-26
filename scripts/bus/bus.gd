@@ -52,7 +52,7 @@ const WINDOWS: Array[Rect2] = [
 const BODY_ORIGIN := Vector2(-40, -23)  # body px (0,0) in chassis space
 const CANVAS_ORIGIN := Vector2(-40, -30)  # top-left of the 100x53 piece canvases
 const WHEEL_X: Array[float] = [-22.0, 34.0]
-const WHEEL_RADIUS := 9.0
+const WHEEL_RADIUS := 10.0
 const GROOVE_TOP := 12.0
 const GROOVE_LENGTH := 16.0
 const WHEEL_REST_Y := 21.0
@@ -146,6 +146,7 @@ var _flip_time := 0.0
 var _prev_vel := Vector2.ZERO
 var _since_landing := 99.0
 var _skin: Node2D
+var _springs_node: Node2D
 var _cannon: Sprite2D
 var _cannon_cd := 0.0
 var _reload := 0.0  ## an empty cannon slowly reloads one slug at a time
@@ -167,6 +168,7 @@ func _ready() -> void:
 	_build_chassis()
 	_build_skin()
 	_build_wheels()
+	_build_springs()
 	_build_lights()
 	_prev_vel = _spawn_vel
 	audio = BusAudio.new(self)
@@ -337,6 +339,40 @@ func _build_wheels() -> void:
 		_attach(spring, w)
 
 
+## Coilovers you can see working: drawn over the body but behind the tires, from
+## the hub up into the body, bunching and stretching with the real suspension.
+func _build_springs() -> void:
+	var coils := Node2D.new()
+	coils.name = "Springs"
+	coils.draw.connect(_draw_springs.bind(coils))
+	add_child(coils)
+	move_child(coils, wheels[0].get_index())  # draw order: chassis, springs, wheels
+	_springs_node = coils
+
+
+func _draw_springs(n: Node2D) -> void:
+	if is_crashed or chassis == null:
+		return
+	for i in wheels.size():
+		var top := chassis.to_global(Vector2(WHEEL_X[i], 0))
+		var bottom := wheels[i].global_position
+		var axis := bottom - top
+		var side := axis.normalized().orthogonal() * 3.0
+		# Shock absorber body (dark tube) inside the coil.
+		n.draw_line(top, top + axis * 0.55, Color("#2a2830"), 3.0)
+		n.draw_line(top + axis * 0.45, bottom, Color("#9a9aa8"), 1.5)
+		# The coil: zig-zag that bunches up as the suspension compresses.
+		var turns := 5
+		var prev := top
+		for k in range(1, turns * 2 + 1):
+			var t := float(k) / (turns * 2)
+			var p := top + axis * t + side * (1.0 if k % 2 == 0 else -1.0)
+			n.draw_line(prev, p, Color("#e0503a"), 2.0)
+			n.draw_line(prev + Vector2(0, -0.5), p + Vector2(0, -0.5), Color("#ff9a7a"), 1.0)
+			prev = p
+		n.draw_line(prev, bottom, Color("#e0503a"), 2.0)
+
+
 func _attach(joint: Joint2D, wheel: RigidBody2D) -> void:
 	chassis.add_child(joint)
 	joint.node_a = joint.get_path_to(chassis)
@@ -410,6 +446,7 @@ func _physics_process(delta: float) -> void:
 	if is_crashed:
 		return
 
+	_springs_node.queue_redraw()
 	var accel := (chassis.linear_velocity - _prev_vel) / delta
 	var proper := (accel - Vector2(0, _gravity)).rotated(-chassis.rotation)
 	passengers.update_sway(proper, _gravity, delta)

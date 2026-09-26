@@ -349,8 +349,8 @@ def fenders():
 
 
 def wheel():
-    """Chunky 19px knobby tire with a chrome 5-lug hub."""
-    n, r = 19, 9.3
+    """Fat 21px knobby tire (lots of rubber) with a chrome 5-lug hub."""
+    n, r = 21, 10.3
     c = Canvas(n, n)
     m = (n - 1) / 2
     for y in range(n):
@@ -362,9 +362,11 @@ def wheel():
                 c.set(x, y, TIRE)
             if r - 2.6 <= d <= r - 1.6 and knob:
                 c.set(x, y, TIRE_L)  # tread blocks make the spin readable
-            if d <= 5.2:
+            if 5.4 < d <= 6.2:
+                c.set(x, y, (40, 38, 46))  # sidewall ring
+            if d <= 4.8:
                 c.set(x, y, HUB_D)
-            if d <= 4.3:
+            if d <= 4.0:
                 c.set(x, y, HUB)
     for i in range(5):
         a = i * 2 * math.pi / 5

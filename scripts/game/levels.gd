@@ -82,6 +82,7 @@ static func _build(index: int, r: Array) -> Dictionary:
 	var blockers: bool = opts.get("blockers", true)
 	var zone: String = opts.get("zone", "")
 	var difficulty := clampf(index / 23.0, 0.0, 1.0)
+	var downhill_chance: float = 0.25 + 0.25 * difficulty  # more downhill landings in later worlds
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(title)
 
@@ -136,7 +137,14 @@ static func _build(index: int, r: Array) -> Dictionary:
 		var land_dy := 0.0 if dy_range <= 0 else rng.randf_range(-minf(dy_range, 30.0), dy_range)
 		height += land_dy
 		segs.append_array(_j(rng.randf_range(140, 170), rng.randf_range(45, 60), gap_len, kind, land_dy))
-		segs.append(_f(rng.randf_range(420, 560)))  # landing strip
+		if index >= 2 and rng.randf() < downhill_chance:
+			# Downhill landing: tip the nose down to match the slope, then it levels out.
+			var fall := rng.randf_range(80, 150)
+			height += fall
+			segs.append({"t": "landing", "len": rng.randf_range(320, 440), "dy": fall})
+			segs.append(_f(rng.randf_range(260, 380)))
+		else:
+			segs.append(_f(rng.randf_range(420, 560)))  # landing strip
 		if (j + 1) % CHECKPOINT_EVERY == 0 and j < jumps - 1:
 			segs.append({"t": "checkpoint"})
 			segs.append(_f(200))

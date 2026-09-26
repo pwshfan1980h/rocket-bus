@@ -7,6 +7,7 @@ extends Node2D
 ##   {"t": "flat", "len": 400}
 ##   {"t": "hill", "len": 300, "amp": 20, "waves": 1}   smooth bumps
 ##   {"t": "slope", "len": 300, "dy": -60}              ease up/down
+##   {"t": "landing", "len": 360, "dy": 110}            downhill landing: steepest at the start, levels out
 ##   {"t": "ramp", "len": 150, "rise": 50}              must be followed by a gap
 ##   {"t": "gap", "len": 240, "dy": 0, "kind": "chasm"} kind: chasm|water|swamp|ice|lava
 ##   {"t": "fuel"}                                      fuel can at this spot
@@ -57,6 +58,10 @@ func build(segments: Array, biome_name: String) -> Terrain:
 			"hill":
 				var y0 := _y
 				_add_curve(seg.len, func(t): return y0 - seg.amp * (1.0 - cos(TAU * seg.get("waves", 1) * t)) / 2.0)
+			"landing":
+				var y0 := _y
+				_add_curve(seg.len, func(t): return y0 + seg.dy * (1.0 - pow(1.0 - t, 2.2)))
+				_road_y = _y
 			"slope":
 				var y0 := _y
 				_add_curve(seg.len, func(t): return y0 + seg.dy * (1.0 - cos(PI * t)) / 2.0)

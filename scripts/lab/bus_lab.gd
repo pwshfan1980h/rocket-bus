@@ -8,7 +8,7 @@ extends Node2D
 
 const BusScene := preload("res://scenes/bus.tscn")
 const LIGHT_TEX := preload("res://assets/sprites/light_radial.png")
-const REST_Y := -30.0  # chassis y when sitting on the road
+const REST_Y := -31.0  # chassis y when sitting on the road
 const RAMP_LIP_X := 1076.0
 
 const PRESETS := {
