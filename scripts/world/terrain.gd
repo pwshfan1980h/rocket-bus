@@ -372,7 +372,8 @@ func _draw_gap_walls(node: Node2D) -> void:
 		return  # nothing between floating islands but the void
 	var g: Dictionary = biome.ground
 	for gap in gaps:
-		var top := minf(gap.road_y, gap.land_y) + 14.0
+		# The far canyon wall starts below the LOWER side, so drop-offs still show scenery above.
+		var top := maxf(gap.road_y, gap.land_y) + 14.0
 		var far := Color(g.body[1]).darkened(0.6)
 		node.draw_rect(Rect2(gap.x0, top, gap.x1 - gap.x0, road_bottom + DEPTH - top), far)
 		for k in 8:  # fade into the abyss
