@@ -56,8 +56,8 @@ func build(segments: Array, biome_name: String) -> Terrain:
 			"ramp":
 				var base := _y
 				var x0 := _x
+				# Ends at the peak: a flat lip would drop the front wheels and pitch the bus nose-down.
 				_add_point(_x + seg.len, _y - seg.rise)
-				_add_point(_x + 18, _y)
 				var r := {"x0": x0, "x1": x0 + seg.len, "lip_x": _x, "top_y": _y, "base_y": base}
 				ramps.append(r)
 				_cur_ramps.append(r)
@@ -307,7 +307,6 @@ func _draw_ramp(n: Node2D, r: Dictionary) -> void:
 		if i % 3 == 1:
 			n.draw_line(Vector2(x, y + 2), Vector2(x + 12, r.base_y), plank_d.darkened(0.2), 1.0)
 	n.draw_line(Vector2(r.x0, r.base_y), Vector2(r.x1, r.top_y), plank, 3.0)
-	n.draw_line(Vector2(r.x1, r.top_y), Vector2(r.lip_x, r.top_y), plank, 3.0)
 	for y in range(int(r.top_y), int(r.base_y), 6):  # hazard stripes on the lip
 		n.draw_rect(Rect2(r.lip_x - 4, y, 4, 3), Color("#ffc828"))
 		n.draw_rect(Rect2(r.lip_x - 4, y + 3, 4, 3), Color("#1a1420"))

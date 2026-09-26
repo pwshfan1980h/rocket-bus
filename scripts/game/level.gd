@@ -238,11 +238,18 @@ func _bot_drive() -> void:
 		if p.x > next.x0 - 70 and p.x < next.x1:
 			var dy := land_y - 31 - p.y
 			var t := (-v.y + sqrt(maxf(0.0, v.y * v.y + 2 * 700 * dy))) / 700.0  # time to fall to the landing height
-			fire = p.x + v.x * t < next.x1 + 130 or not bus.airborne
+			# Keep burning until the ballistic arc lands past the gap AND clears the far lip.
+			var t_lip: float = maxf(0.0, (next.x1 + 20 - p.x) / maxf(v.x, 1.0))
+			var y_at_lip: float = p.y + v.y * t_lip + 350.0 * t_lip * t_lip
+			var clears: bool = y_at_lip < next.land_y - 42 or p.x > next.x1
+			fire = p.x + v.x * t < next.x1 + 130 or not clears or not bus.airborne
 	if bus.airborne:
 		var err := wrapf(c.rotation - target_angle, -PI, PI)
 		right = -clampf(err * 2.0 + c.angular_velocity * 2.5, -1.0, 1.0)  # + = nose down
 	bus.ai_input = {"right": right, "fire": fire and not "--norocket" in _args}
+	if "--trace" in _args and Engine.get_physics_frames() % 6 == 0:
+		print("TRACE x=%d y=%d rot=%.1f tgt=%.1f spin=%.2f air=%s fire=%s right=%.2f v=(%d,%d)" % [p.x, p.y,
+				rad_to_deg(c.rotation), rad_to_deg(target_angle), c.angular_velocity, bus.airborne, fire, right, v.x, v.y])
 
 
 func _bot_done(result: String, detail: String) -> void:

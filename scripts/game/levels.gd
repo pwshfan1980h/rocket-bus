@@ -30,7 +30,7 @@ static func all() -> Array:
 			_f(500), _j(140, 45, 220, "chasm"), _f(450), _fuel(), _f(100),
 			_j(150, 50, 260, "water"), _f(400), _end()]),
 		_lvl("MESA LEAP", "desert", 100, "The far side is higher. Burn longer.", [
-			_f(400), _s(300, -50), _f(300), _j(150, 55, 300, "chasm", -30), _f(400), _h(300, 20),
+			_f(400), _s(300, -50), _f(300), _j(150, 55, 240, "chasm", -20), _f(400), _h(300, 20),
 			_j(140, 50, 260, "chasm", 30), _f(400), _end()]),
 		# --- World 2: Jungle -------------------------------------------------------------
 		_lvl("RIVER RUN", "jungle", 100, "Rivers, bugs, and one very nervous driver.", [
@@ -47,7 +47,7 @@ static func all() -> Array:
 			_j(140, 50, 260, "water"), _f(250), _j(140, 50, 280, "swamp", -30), _f(400), _end()]),
 		# --- World 3: Mountains ----------------------------------------------------------
 		_lvl("SWITCHBACK", "mountain", 100, "Up, over, and down the mountain.", [
-			_f(400), _s(400, -90), _f(200), _j(150, 55, 280, "chasm"), _f(300), _s(300, 60),
+			_f(400), _s(400, -90), _f(200), _j(150, 55, 280, "chasm"), _f(300), _s(300, 60), _f(140),
 			_j(140, 50, 260, "water"), _f(300), _j(150, 50, 260, "chasm", -40), _f(400), _end()]),
 		_lvl("GOAT PATH", "mountain", 100, "Bumpy road. Hold it steady.", [
 			_f(300), _h(400, 16, 2), _f(120), _j(150, 55, 300, "chasm", -25), _f(250), _fuel(), _f(80),

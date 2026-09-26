@@ -60,7 +60,7 @@ const LAYER_DEBRIS := 4
 @export var fuel_capacity := 100.0
 @export var fuel_burn_rate := 34.0
 @export_group("Air control")
-@export var air_torque := 2600.0
+@export var air_torque := 3600.0
 @export var max_air_spin := 2.2
 @export_group("Landing")
 @export var min_air_time := 0.3
@@ -70,7 +70,7 @@ const LAYER_DEBRIS := 4
 @export var hard_angle := 15.0
 @export var crash_impact := 900.0
 @export var crash_angle := 34.0
-@export var body_crash_speed := 260.0
+@export var body_crash_speed := 340.0
 
 var chassis: RigidBody2D
 var wheels: Array[RigidBody2D] = []
