@@ -2,8 +2,8 @@ extends Camera2D
 ## Follows a body with speed look-ahead and a dynamic zoom: pulls back as the bus
 ## speeds up or climbs, eases back in as it slows. Shakes on Fx.shake().
 
-const ZOOM_NEAR := 1.08  ## parked / crawling
-const ZOOM_FAR := 0.68  ## flat out, high in the air
+const ZOOM_NEAR := 0.9  ## parked / crawling (a little wide by default for visibility)
+const ZOOM_FAR := 0.55  ## flat out, high in the air
 
 var target: Node2D
 var terrain: Terrain  ## optional: lets height above the road widen the view

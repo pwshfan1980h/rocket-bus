@@ -47,7 +47,8 @@ func _ready() -> void:
 	menu.position = Vector2(340, 104)
 	ui.add_child(menu)
 	menu.chosen.connect(_on_choice)
-	_label(ui, "STARS %d/%d" % [GameState.total_stars(), Levels.count() * 3], Vector2(0, 254), 8, Color("#ffcc26"), 2)
+	_label(ui, "STARS %d/%d" % [GameState.total_stars(), Levels.count() * 3], Vector2(0, 244), 8, Color("#ffcc26"), 2)
+	_label(ui, "MUSIC BY KEVIN MACLEOD (INCOMPETECH.COM)  CC BY 4.0", Vector2(0, 258), 8, Color(1, 1, 1, 0.35), 0)
 	var world_name := _label(ui, Biomes.get_biome(biome).title, Vector2(8, 254), 8, Color(1, 1, 1, 0.4), 0)
 	world_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	world_name.size.x = 200

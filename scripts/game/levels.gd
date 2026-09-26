@@ -37,7 +37,7 @@ static func all() -> Array:
 			_f(500), _h(400, 14, 2), _j(150, 50, 260, "water"), _f(400),
 			_j(140, 45, 240, "swamp"), _f(400), _end()]),
 		_lvl("SWAMP THING", "jungle", 100, "Something lives in that swamp.", [
-			_f(300), _o("log"), _f(400), _j(130, 45, 230, "swamp"), _f(350), _s(300, 40), _f(200),
+			_f(300), _o("log"), _f(400), _j(130, 45, 230, "swamp"), _f(120), _mud(180), _f(50), _s(300, 40), _f(200),
 			_j(150, 55, 280, "swamp", -20), _f(400), _end()]),
 		_lvl("CANOPY CHASE", "jungle", 100, "Three gaps under the canopy.", [
 			_f(400), _j(140, 50, 240, "chasm"), _f(300), _fuel(), _h(300, 20),
@@ -60,7 +60,7 @@ static func all() -> Array:
 			_s(300, -60), _j(160, 60, 340, "chasm", 40), _f(250), _j(150, 55, 300, "chasm"), _f(400), _end()]),
 		# --- World 4: Snow ----------------------------------------------------------------
 		_lvl("FIRST FROST", "snow", 100, "Icy roads. Brake early.", [
-			_f(500), _j(150, 50, 240, "ice"), _f(400), _j(150, 50, 260, "chasm"), _f(400),
+			_f(250), _ice(200), _f(50), _j(150, 50, 240, "ice"), _f(400), _j(150, 50, 260, "chasm"), _f(400),
 			_j(150, 50, 260, "ice"), _f(400), _end()]),
 		_lvl("FROZEN LAKE", "snow", 110, "Don't test the ice.", [
 			_f(300), _o("barricade"), _f(400), _s(300, 40), _j(150, 55, 320, "ice"), _f(300), _fuel(), _f(80),
@@ -97,6 +97,11 @@ const SMASHABLES := {
 	"mountain": ["crate", "cone", "fence", "barrel"], "snow": ["crate", "cone", "fence"],
 	"volcano": ["barrel", "barrel", "crate"], "moon": ["crate", "barrel"],
 }
+const WEATHER := {
+	"MESA LEAP": "sandstorm", "RIVER RUN": "rain", "CANOPY CHASE": "rain", "GOAT PATH": "rain",
+	"SUMMIT RUN": "rain", "AVALANCHE ALLEY": "blizzard", "POLAR EXPRESS": "blizzard",
+	"ASH CLOUD": "ash", "THE LAST STOP": "ash",
+}
 const BLOCKERS := {
 	"desert": ["boulder", "barricade"], "jungle": ["log", "boulder"], "mountain": ["boulder", "log"],
 	"snow": ["log", "barricade"], "volcano": ["boulder", "barricade"], "moon": ["boulder"],
@@ -116,7 +121,8 @@ static func _lvl(title: String, biome: String, fuel: float, blurb: String, segs:
 	for s in flat:
 		if s.t == "obj" and s.kind in BLOCKERS.get(biome, []):
 			ammo += Obstacle.KINDS[s.kind].hp
-	return {"title": title, "biome": biome, "fuel": fuel, "blurb": blurb, "segments": flat, "ammo": ammo}
+	return {"title": title, "biome": biome, "fuel": fuel, "blurb": blurb, "segments": flat, "ammo": ammo,
+		"weather": WEATHER.get(title, "")}
 
 
 ## Puts road clutter on long flat stretches: smashables everywhere, and (after the
@@ -167,6 +173,14 @@ static func _s(length: float, dy: float) -> Dictionary:
 static func _j(ramp_len: float, rise: float, gap_len: float, kind: String, dy := 0.0) -> Array:
 	return [{"t": "ramp", "len": ramp_len, "rise": rise},
 		{"t": "gap", "len": gap_len + GAP_EXTRA, "kind": kind, "dy": dy}]
+
+
+static func _mud(length: float) -> Dictionary:
+	return {"t": "mud", "len": length}
+
+
+static func _ice(length: float) -> Dictionary:
+	return {"t": "ice", "len": length}
 
 
 static func _o(kind: String) -> Dictionary:

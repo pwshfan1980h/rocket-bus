@@ -11,6 +11,7 @@ extends Node2D
 ##   {"t": "gap", "len": 240, "dy": 0, "kind": "chasm"} kind: chasm|water|swamp|ice|lava
 ##   {"t": "fuel"}                                      fuel can at this spot
 ##   {"t": "ammo"}                                      cannon ammo crate at this spot
+##   {"t": "mud", "len": 200} / {"t": "ice", "len": 200}  flat road with a mud / ice patch
 ##   {"t": "obj", "kind": "crate"}                      road obstacle (see Obstacle.KINDS)
 ##   {"t": "finish", "len": 300}                        bus stop + finish line
 
@@ -26,6 +27,7 @@ var ramps: Array[Dictionary] = []
 var pickups: Array[Vector2] = []
 var ammo_spots: Array[Vector2] = []
 var objects: Array[Dictionary] = []  # {"x": float, "kind": String}
+var zones: Array[Dictionary] = []  # {"x0", "x1", "kind": "mud"|"ice"}
 var signs: Array[Vector2] = []
 var finish_x := 0.0
 var end_x := 0.0
@@ -89,6 +91,9 @@ func build(segments: Array, biome_name: String) -> Terrain:
 				ammo_spots.append(Vector2(_x, _y - 30))
 			"obj":
 				objects.append({"x": _x, "kind": seg.kind})
+			"mud", "ice":
+				zones.append({"x0": _x, "x1": _x + seg.len, "kind": seg.t})
+				_add_flat(seg.len)
 			"finish":
 				finish_x = _x + 90
 				_add_flat(seg.len)
@@ -136,6 +141,14 @@ func ground_y(x: float) -> float:
 		if x >= r.x0 - 4 and x <= r.lip_x + 4:
 			return NAN
 	return surface_y(x)
+
+
+## "mud", "ice" or "" for the road surface at x.
+func zone_at(x: float) -> String:
+	for z in zones:
+		if x >= z.x0 and x <= z.x1:
+			return z.kind
+	return ""
 
 
 func gap_at(x: float) -> Dictionary:
@@ -293,6 +306,20 @@ func _draw_overlay(n: Node2D) -> void:
 				n.draw_rect(Rect2(end if dir > 0 else end - w, y, w, 6), dark)
 	for r in ramps:
 		_draw_ramp(n, r)
+	for z in zones:
+		var mud: bool = z.kind == "mud"
+		var x: float = z.x0
+		while x < z.x1:
+			var y := _line_y(_ground_line_cache(z), x)
+			var edge := minf(x - z.x0, z.x1 - x)
+			var thick := clampf(edge / 10.0, 0.0, 3.0)
+			if thick > 0.0:
+				n.draw_rect(Rect2(x, y - thick + 1, 4, thick + 2), Color("#5a3a1e") if mud else Color("#bfe6ff"))
+				if not mud and int(x) % 20 == 0:
+					n.draw_rect(Rect2(x + 1, y - thick, 2, 1), Color.WHITE)
+				elif mud and int(x) % 16 == 0:
+					n.draw_rect(Rect2(x + 1, y - thick - 1, 2, 1), Color("#7a5230"))
+			x += 4
 	for b in _barriers:
 		n.draw_rect(Rect2(b.x, b.y - 40, 20, 40), Color("#2a2430"))
 		for k in 5:
@@ -331,6 +358,13 @@ func _draw_gap_walls(node: Node2D) -> void:
 		for k in int((gap.x1 - gap.x0) / 10):  # jagged far-wall highlights
 			var x: float = gap.x0 + k * 10 + 3
 			node.draw_rect(Rect2(x, top + (k * 13) % 30, 2, 18), far.lightened(0.12))
+
+
+func _ground_line_cache(z: Dictionary) -> PackedVector2Array:
+	for isl in islands:
+		if z.x0 >= isl.x0 and z.x0 <= isl.x1:
+			return _ground_line(isl)
+	return PackedVector2Array([Vector2(z.x0, 0), Vector2(z.x1, 0)])
 
 
 func _line_y(line: PackedVector2Array, x: float) -> float:

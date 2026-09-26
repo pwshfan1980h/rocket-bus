@@ -17,12 +17,14 @@ var camera: Camera2D
 var bus: Bus
 var backdrop: Backdrop
 var obstacles: Array[Obstacle] = []
+var weather: Weather
+var tint: CanvasModulate
 
 
 func build(biome: String, segments: Array) -> World:
 	biome_name = biome
 	var b := Biomes.get_biome(biome)
-	var tint := CanvasModulate.new()
+	tint = CanvasModulate.new()
 	tint.color = b.modulate
 	add_child(tint)
 
@@ -87,6 +89,16 @@ func spawn_bus(at := Vector2.INF, fuel := 100.0, vel := Vector2.ZERO) -> Bus:
 	camera.target = bus.chassis
 	camera.snap()
 	return bus
+
+
+func set_weather(kind: String) -> void:
+	if kind == "":
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 3
+	weather = Weather.new().setup(kind, terrain, tint)
+	layer.add_child(weather)
+	add_child(layer)
 
 
 func start_ambience() -> void:

@@ -13,7 +13,7 @@ const BIRD_COLORS := {
 	"BAY CITY": ["#8a8a9a", "#6a6a7a"],
 }
 ## Half-size of the area around the camera that's simulated/drawn (fits the widest zoom).
-const VIEW := Vector2(380, 220)
+const VIEW := Vector2(470, 270)
 const DUST_COLORS := {
 	"DESERT": "#e0b888", "JUNGLE": "#6a4a2a", "MOUNTAINS": "#a0a0a8", "SNOW": "#ffffff",
 	"VOLCANO": "#3a3030", "BAY CITY": "#8a8a8a",

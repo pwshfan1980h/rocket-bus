@@ -63,6 +63,8 @@ func _ready() -> void:
 		world.camera.target = _anchor
 		world.camera.snap()
 	bus.ammo = def.get("ammo", 3)
+	world.set_weather(def.get("weather", ""))
+	bus.headwind = world.weather.headwind if world.weather else 0.0
 	_hook_bus()
 	world.start_ambience()
 	_build_hud()
@@ -131,6 +133,12 @@ func _physics_process(delta: float) -> void:
 	_hud.ammo.text = "AMMO %d" % bus.ammo
 	_hud.fuel.color = Color("#ff4aa8") if bus.fuel_ratio() > 0.25 else Color("#ff3b3b")
 
+	var zone := ""
+	for w in bus.wheels:
+		var z := world.terrain.zone_at(w.global_position.x)
+		if z != "" and not bus.airborne:
+			zone = z
+	bus.surface = zone
 	var gap := world.terrain.gap_at(x)
 	if not gap.is_empty() and c.global_position.y > gap.trigger_y:
 		bus.hazard(gap.kind, Vector2(x, gap.liquid_y))
@@ -382,7 +390,12 @@ func _build_hud() -> void:
 	_hud.layer = layer
 	_label(layer, "%s %s" % [Levels.code(index), def.title], Vector2(8, 8), 8, Color("#ffcc26"), 2)
 	_hud.gaps = _label(layer, "GAPS 0/%d" % world.terrain.gaps.size(), Vector2(8, 20), 8, Color("#3cf0dc"), 2)
-	_hud.time = _label(layer, "0.0", Vector2(220, 8), 8, Color.WHITE, 2)
+	var minimap := Minimap.new().setup(world, bus)
+	minimap.position = Vector2(122, 5)
+	layer.add_child(minimap)
+	_hud.time = _label(layer, "0.0", Vector2(0, 34), 8, Color.WHITE, 2)
+	_hud.time.size.x = 480
+	_hud.time.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label(layer, "FUEL", Vector2(364, 10), 8, Color("#ffcc26"), 2)
 	var back := ColorRect.new()
 	back.color = Color(0.08, 0.04, 0.12, 0.8)

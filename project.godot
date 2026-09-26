@@ -40,6 +40,10 @@ environment/defaults/default_clear_color=Color(0.1, 0.06, 0.16, 1)
 
 [importer_defaults]
 
+mp3={
+"loop": true
+}
+
 wav={
 "compress/mode": 0
 }

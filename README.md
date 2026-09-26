@@ -7,3 +7,5 @@ Launch a double-decker bus off ramps, fire the rocket to clear the gap, land it 
 **Keys:** D / → drive · A / ← brake · Space rocket · F cannon · H horn · R retry · Esc pause
 
 Made with Godot 4.7. Open the folder in Godot and press Play.
+
+Music: Kevin MacLeod (incompetech.com), CC BY 4.0. See [CREDITS.md](CREDITS.md).

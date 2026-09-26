@@ -488,6 +488,81 @@ def ammo_pickup():
     return mix(x, clank(), 0.0, 0.3)
 
 
+def rain_loop():
+    dur = 3.3
+    hiss = bandpass(noise(dur + 0.3, 601), 1200, 7000)
+    x = mix(silence(dur + 0.3), hiss, 0, 0.5)
+    rng = random.Random(602)
+    for _ in range(260):  # individual drops
+        mix(x, env(highpass(noise(0.01, rng.randint(0, 9999)), 2500), decay(0.003)), rng.uniform(0, dur), rng.uniform(0.1, 0.5))
+    return loopify(x, 0.3)
+
+
+def thunder():
+    dur = 2.8
+    crack = env(highpass(noise(0.3, 611), 800), decay(0.06))
+    rumble = env(lowpass(brown(dur, 612), lambda t: 400 * math.exp(-t * 0.8) + 60), lambda t: min(1, t / 0.15) * math.exp(-t * 1.1))
+    x = mix(silence(dur), crack, 0, 0.6)
+    return mix(x, rumble, 0.05, 1.0)
+
+
+def sandstorm_loop():
+    dur = 3.3
+    w = bandpass(noise(dur + 0.3, 621), 500, lambda t: 2500 + 1200 * math.sin(TAU * t / dur))
+    grit = highpass(noise(dur + 0.3, 622), 4000)
+    return loopify([a + b * 0.25 for a, b in zip(w, grit)], 0.3)
+
+
+def blizzard_loop():
+    dur = 3.3
+    w = bandpass(noise(dur + 0.3, 631), 300, lambda t: 1600 + 900 * math.sin(TAU * t / dur))
+    howl = osc(lambda t: 520 + 90 * math.sin(TAU * t / dur), dur + 0.3)
+    return loopify([a + b * 0.05 for a, b in zip(w, howl)], 0.3)
+
+
+def mud_splash():
+    x = env(lowpass(noise(0.4, 641), lambda t: 1800 * math.exp(-t * 7) + 200), decay(0.1))
+    return mix(x, bubbles(0.3, 642), 0.05, 0.3)
+
+
+def monkey_screech():
+    x = silence(0.7)
+    for i in range(3):
+        mix(x, env(osc(lambda t: 900 + 700 * math.sin(t * 30), 0.16, "saw"), adsr(0.01, 0.03, 0.7, 0.05, 0.16)), i * 0.2, 0.4)
+    return bandpass(x, 500, 4000)
+
+
+def goat_bleat():
+    return voice(lambda t: 330 * (1 + 0.08 * math.sin(t * 60)), 0.55, (700, 1500), 651)
+
+
+def penguin_squawk():
+    return voice(lambda t: 420 - 150 * t, 0.3, (600, 1100), 661)
+
+
+def snake_hiss():
+    return env(highpass(noise(0.7, 671), 3500), adsr(0.05, 0.1, 0.7, 0.3, 0.7))
+
+
+def bat_squeak():
+    x = silence(0.3)
+    for i in range(3):
+        mix(x, env(osc(lambda t: 5200 - 2000 * t * 10, 0.04), decay(0.012)), i * 0.07, 0.5)
+    return x
+
+
+def vulture_caw():
+    return drive(voice(lambda t: 260 - 60 * t, 0.5, (450, 850), 681), 2.0)
+
+
+def amb_moon_loop():
+    dur = 4.3
+    hum = osc(55, dur + 0.3, "sine")
+    hum2 = osc(82.5, dur + 0.3, "sine")
+    air = lowpass(noise(dur + 0.3, 691), 300)
+    return loopify([a * 0.5 + b * 0.3 + c * 0.2 for a, b, c in zip(hum, hum2, air)], 0.3)
+
+
 def cheer():
     x = silence(1.3)
     rng = random.Random(7)
@@ -879,6 +954,7 @@ MUSIC = {
     "music_snow": (100, 53, "major", [5, 3, 0, 4], "snow", 5),
     "music_volcano": (160, 48, "phrygian", [0, 1, 0, 6], "metal", 6),
     "music_results": (118, 60, "major", [0, 5, 3, 4], "chill", 7),
+    "music_moon": (96, 50, "dorian", [0, 5, 3, 6], "snow", 8),
 }
 
 
@@ -890,7 +966,8 @@ SFX = [
     amb_jungle_loop, amb_mountain_loop, amb_snow_loop, amb_volcano_loop, amb_city_loop,
     jingle_perfect, jingle_good, sting_hard, sting_crash, ui_move, ui_select, ui_back, ui_start,
     count_beep, count_go, gap_cleared, star, score_tick, level_clear, fail_jingle, title_slam,
-    typewriter, cannon, explosion, wood_break, rock_break, plastic_bonk, ammo_pickup,
+    typewriter, rain_loop, thunder, sandstorm_loop, blizzard_loop, mud_splash, monkey_screech,
+    goat_bleat, penguin_squawk, snake_hiss, bat_squeak, vulture_caw, amb_moon_loop, cannon, explosion, wood_break, rock_break, plastic_bonk, ammo_pickup,
 ]
 
 

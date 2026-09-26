@@ -112,6 +112,13 @@ var throttle := 0.0  ## current -1..1 drive input
 var wants_fire := false
 var controls_enabled := true
 var ammo := 0
+## Road surface under the wheels, set by the level: "", "mud" or "ice".
+var surface := "":
+	set(v):
+		if v != surface:
+			_on_surface(surface, v)
+		surface = v
+var headwind := 0.0  ## weather push against the bus (px/s^2-ish force)
 var in_hazard := ""
 var audio: BusAudio
 ## Scripted input (lab demos, replays): {"right": -1..1, "fire": bool}. Empty = player.
@@ -380,6 +387,8 @@ func _physics_process(delta: float) -> void:
 	if not controls_enabled and not airborne:
 		_hold_brakes()
 
+	if headwind != 0.0:
+		chassis.apply_central_force(Vector2(-headwind, 0) * chassis.mass)
 	if wheel_contacts > 0:
 		_drive(right)
 	else:
@@ -399,13 +408,16 @@ func _physics_process(delta: float) -> void:
 
 func _drive(right: float) -> void:
 	var speed := get_speed()
+	var grip: float = {"mud": 0.55, "ice": 0.35}.get(surface, 1.0)
+	if surface == "mud":  # sticky: drags the bus down
+		chassis.apply_central_force(Vector2(-chassis.linear_velocity.x * 1.4, 0) * chassis.mass)
 	for w in wheels:
 		if right > 0.0:
 			if w.angular_velocity < max_wheel_spin:
-				w.apply_torque(drive_torque * right)
+				w.apply_torque(drive_torque * right * grip)
 		elif right < 0.0:
 			if speed > 25.0:
-				w.apply_torque(-brake_torque * signf(w.angular_velocity))
+				w.apply_torque(-brake_torque * grip * signf(w.angular_velocity))
 			elif w.angular_velocity > -max_wheel_spin * 0.4:
 				w.apply_torque(drive_torque * right * 0.6)
 
@@ -459,6 +471,47 @@ func fire_cannon() -> void:
 ## Something outside the bus (an obstacle) wrecks it.
 func crash_into(reason: String) -> void:
 	_crash(reason)
+
+
+func _on_surface(old: String, new: String) -> void:
+	for w in wheels:
+		w.physics_material_override.friction = 0.25 if new == "ice" else 1.2
+	if new == "mud":
+		Audio.play("mud_splash", -4.0, 1.0, 0.1)
+		_mud_spray()
+		passengers.chatter(["EWW, MUD!", "SPLASH!", "MY SHOES!"].pick_random())
+	elif new == "ice" and old == "":
+		passengers.chatter(["ICE!", "WHOA, SLIPPY!", "HOLD ON!"].pick_random(), "voice_hurt")
+
+
+## Brown spray off the wheels, and mud splats that stay on the bus.
+func _mud_spray() -> void:
+	for w in wheels:
+		var p := CPUParticles2D.new()
+		p.position = w.global_position + Vector2(0, 6)
+		p.one_shot = true
+		p.explosiveness = 0.8
+		p.amount = 24
+		p.lifetime = 0.7
+		p.direction = Vector2(-1, -1)
+		p.spread = 40.0
+		p.gravity = Vector2(0, 600)
+		p.initial_velocity_min = 80.0
+		p.initial_velocity_max = 200.0
+		p.scale_amount_min = 1.5
+		p.scale_amount_max = 3.0
+		p.color = Color("#5a3a1e")
+		add_child(p)
+		p.emitting = true
+		get_tree().create_timer(1.0).timeout.connect(p.queue_free)
+	var splats := Node2D.new()
+	var blobs := []
+	for i in 10:
+		blobs.append(Rect2(randf_range(-38, 50), randf_range(12, 21), randf_range(2, 5), randf_range(1, 3)))
+	splats.draw.connect(func():
+		for b in blobs:
+			splats.draw_rect(b, Color("#5a3a1e")))
+	_skin.add_child(splats)
 
 
 func _hold_brakes() -> void:
