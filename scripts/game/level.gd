@@ -75,6 +75,7 @@ func _intro() -> void:
 	gaps_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var wait := 0.3 if _bot else 1.6
 	await get_tree().create_timer(wait).timeout
+	if not is_inside_tree(): return
 	for n in [card, blurb, gaps_l]:
 		n.queue_free()
 	if not _bot:
@@ -82,6 +83,7 @@ func _intro() -> void:
 			_big_center(c, Color.WHITE)
 			Audio.play("count_beep", -4.0)
 			await get_tree().create_timer(0.55).timeout
+			if not is_inside_tree(): return
 	_big_center("GO!", Color("#7dff6a"))
 	Audio.play("count_go", -4.0)
 	state = State.PLAY
@@ -196,6 +198,7 @@ func _win() -> void:
 		return
 	GameState.record(index, score, stars)
 	await get_tree().create_timer(1.6).timeout
+	if not is_inside_tree(): return
 	_show_results(score, stars, fuel_left, time_bonus)
 
 
@@ -207,9 +210,11 @@ func _fail(kind: String, reason := "") -> void:
 		_bot_done("FAILED", "%s %s at x=%d fuel=%d landings=%s last=%s" % [kind, reason, bus.chassis.global_position.x, bus.fuel, landings, bus.last_landing])
 		return
 	await get_tree().create_timer(0.5).timeout
+	if not is_inside_tree(): return
 	if kind != "crash":
 		_big_center(FAIL_TEXT.get(kind, "OOPS!"), Color("#ff3b4e"))
 	await get_tree().create_timer(1.8).timeout
+	if not is_inside_tree(): return
 	Audio.play("fail_jingle", -4.0)
 	_show_retry(FAIL_TEXT.get(kind, "OOPS!"))
 
@@ -259,6 +264,7 @@ func _bot_done(result: String, detail: String) -> void:
 	if "--botall" in _args and index + 1 < Levels.count():
 		GameState.current_level = index + 1
 		await get_tree().create_timer(0.3).timeout
+		if not is_inside_tree(): return
 		get_tree().change_scene_to_file("res://scenes/level.tscn")
 	else:
 		print("BOT REPORT\n  " + "\n  ".join(bot_report))

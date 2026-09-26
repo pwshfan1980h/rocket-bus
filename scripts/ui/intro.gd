@@ -29,26 +29,32 @@ func _ready() -> void:
 	add_child(_ui)
 	_label("PRESS ANY KEY TO SKIP", Vector2(0, 256), 8, Color(1, 1, 1, 0.35), 0)
 	_run()
+	for a in OS.get_cmdline_user_args():  # test hook: --autoskip=SECONDS
+		if a.begins_with("--autoskip="):
+			get_tree().create_timer(float(a.substr(11))).timeout.connect(_finish)
 
 
+## Every await in this script returns false once the intro is skipped or the scene
+## is gone, and the caller stops. (In a web release build, awaiting on a null tree
+## returns instantly, so an unguarded wait loop would spin forever and freeze the tab.)
 func _run() -> void:
 	_typewrite("SOMEWHERE IN THE MIDDLE OF NOWHERE...", Vector2(0, 36))
-	await _until(func(): return bus.chassis.global_position.x > 200)
+	if not await _until(func(): return bus.chassis.global_position.x > 200): return
 	_phase = "brake"
-	await _until(func(): return absf(bus.get_speed()) < 6.0)
+	if not await _until(func(): return absf(bus.get_speed()) < 6.0): return
 	_phase = "wait"
-	await _wait(0.5)
+	if not await _wait(0.5): return
 	bus.passengers.chatter("UH... DRIVER?", "voice_hurt")
-	await _wait(1.1)
+	if not await _wait(1.1): return
 	bus.passengers.chatter("IS THE BRIDGE OUT?!", "voice_hurt")
-	await _wait(1.0)
+	if not await _wait(1.0): return
 	bus.honk()
-	await _wait(0.5)
+	if not await _wait(0.5): return
 	bus.passengers.chatter("HOLD ON TO YOUR HATS!", "voice_happy")
 	Audio.music("music_menu", 0.2)
-	await _wait(0.6)
+	if not await _wait(0.6): return
 	_phase = "go"
-	await _until(func(): return bus.airborne and bus.chassis.global_position.x > _lip_x + 50)
+	if not await _until(func(): return bus.airborne and bus.chassis.global_position.x > _lip_x + 50): return
 	Engine.time_scale = 0.3
 	_title_slam()
 	await get_tree().create_timer(1.4, true, false, true).timeout
@@ -75,8 +81,8 @@ func _physics_process(_delta: float) -> void:
 
 
 func _on_landed(_grade: String, _i: float, _a: float) -> void:
-	await _wait(1.8)
-	_finish()
+	if await _wait(1.8):
+		_finish()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -114,18 +120,26 @@ func _typewrite(text: String, pos: Vector2) -> void:
 		l.text = text.substr(0, i + 1)
 		if text[i] != " ":
 			Audio.play("typewriter", -10.0, 1.0, 0.2)
-		await _wait(0.05)
-	await _wait(1.2)
+		if not await _wait(0.05): return
+	if not await _wait(1.2): return
 	create_tween().tween_property(l, "modulate:a", 0.0, 0.6)
 
 
-func _until(cond: Callable) -> void:
-	while not cond.call():
+func _alive() -> bool:
+	return not _done and is_inside_tree()
+
+
+func _until(cond: Callable) -> bool:
+	while _alive() and not cond.call():
 		await get_tree().physics_frame
+	return _alive()
 
 
-func _wait(t: float) -> void:
+func _wait(t: float) -> bool:
+	if not _alive():
+		return false
 	await get_tree().create_timer(t).timeout
+	return _alive()
 
 
 func _label(text: String, pos: Vector2, size: int, color: Color, outline: int) -> Label:
