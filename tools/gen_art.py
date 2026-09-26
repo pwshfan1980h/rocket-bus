@@ -385,6 +385,21 @@ def rocket():
     c.save("rocket.png")
 
 
+def cannon():
+    """Bumper cannon: stubby barrel on a bracket, muzzle pointing right. 16x8."""
+    c = Canvas(16, 8)
+    c.rect(0, 3, 4, 7, STEEL_D)  # bracket
+    c.rect(1, 4, 3, 4, STEEL)
+    c.rect(3, 2, 13, 5, STEEL)  # barrel
+    c.rect(3, 2, 13, 2, STEEL_L)
+    c.rect(3, 5, 13, 5, STEEL_D)
+    c.rect(13, 1, 15, 6, STEEL_D)  # muzzle
+    c.rect(15, 3, 15, 4, BLACK)
+    c.rect(6, 2, 7, 5, PINK)  # stripe
+    c.rect(9, 2, 9, 5, RUST[1])
+    c.save("cannon.png")
+
+
 def flame():
     """3 frames, 16x7 each, base at the right edge, tip pointing left."""
     c = Canvas(48, 7)
@@ -573,7 +588,7 @@ def split_pieces():
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for fn in (frame, roof, roof_sign, upper_panel, lower_panel, hood, fenders, wheel, rocket,
+    for fn in (frame, roof, roof_sign, upper_panel, lower_panel, hood, fenders, wheel, rocket, cannon,
                flame, passengers, axle, light_radial, light_cone):
         fn()
     split_pieces()

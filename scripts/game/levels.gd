@@ -23,11 +23,11 @@ static func all() -> Array:
 	return [
 		# --- World 1: Desert ----------------------------------------------------------
 		_lvl("FIRST DAY", "desert", 100, "Hold the rocket off the ramp. Land flat.", [
-			_f(700), _j(150, 50, 200, "chasm"), _f(600), _end()]),
+			_f(700), _j(150, 50, 200, "chasm"), _f(600), _end()], false),
 		_lvl("OASIS HOP", "desert", 100, "Don't feed the bus to the oasis.", [
-			_f(500), _h(300, 16), _f(300), _j(150, 50, 240, "water"), _f(500), _end()]),
+			_f(500), _h(300, 16), _f(300), _j(150, 50, 240, "water"), _f(500), _end()], false),
 		_lvl("DOUBLE TROUBLE", "desert", 100, "Two gaps. One tank. Save some fuel.", [
-			_f(500), _j(140, 45, 220, "chasm"), _f(450), _fuel(), _f(100),
+			_f(300), _o("boulder"), _f(420), _j(140, 45, 220, "chasm"), _f(450), _fuel(), _f(100),
 			_j(150, 50, 260, "water"), _f(400), _end()]),
 		_lvl("MESA LEAP", "desert", 100, "The far side is higher. Burn longer.", [
 			_f(400), _s(300, -50), _f(300), _j(150, 55, 240, "chasm", -20), _f(400), _h(300, 20),
@@ -37,7 +37,7 @@ static func all() -> Array:
 			_f(500), _h(400, 14, 2), _j(150, 50, 260, "water"), _f(400),
 			_j(140, 45, 240, "swamp"), _f(400), _end()]),
 		_lvl("SWAMP THING", "jungle", 100, "Something lives in that swamp.", [
-			_f(400), _j(130, 45, 230, "swamp"), _f(350), _s(300, 40), _f(200),
+			_f(300), _o("log"), _f(400), _j(130, 45, 230, "swamp"), _f(350), _s(300, 40), _f(200),
 			_j(150, 55, 280, "swamp", -20), _f(400), _end()]),
 		_lvl("CANOPY CHASE", "jungle", 100, "Three gaps under the canopy.", [
 			_f(400), _j(140, 50, 240, "chasm"), _f(300), _fuel(), _h(300, 20),
@@ -47,7 +47,7 @@ static func all() -> Array:
 			_j(140, 50, 260, "water"), _f(250), _j(140, 50, 280, "swamp", -30), _f(400), _end()]),
 		# --- World 3: Mountains ----------------------------------------------------------
 		_lvl("SWITCHBACK", "mountain", 100, "Up, over, and down the mountain.", [
-			_f(400), _s(400, -90), _f(200), _j(150, 55, 280, "chasm"), _f(300), _s(300, 60), _f(140),
+			_f(300), _o("boulder"), _f(300), _s(400, -90), _f(200), _j(150, 55, 280, "chasm"), _f(300), _s(300, 60), _f(140),
 			_j(140, 50, 260, "water"), _f(300), _j(150, 50, 260, "chasm", -40), _f(400), _end()]),
 		_lvl("GOAT PATH", "mountain", 100, "Bumpy road. Hold it steady.", [
 			_f(300), _h(400, 16, 2), _f(120), _j(150, 55, 300, "chasm", -25), _f(250), _fuel(), _f(80),
@@ -63,7 +63,7 @@ static func all() -> Array:
 			_f(500), _j(150, 50, 240, "ice"), _f(400), _j(150, 50, 260, "chasm"), _f(400),
 			_j(150, 50, 260, "ice"), _f(400), _end()]),
 		_lvl("FROZEN LAKE", "snow", 110, "Don't test the ice.", [
-			_f(400), _s(300, 40), _j(150, 55, 320, "ice"), _f(300), _fuel(), _f(80),
+			_f(300), _o("barricade"), _f(400), _s(300, 40), _j(150, 55, 320, "ice"), _f(300), _fuel(), _f(80),
 			_j(140, 50, 280, "ice", -30), _f(300), _h(300, 16), _j(150, 55, 300, "chasm"), _f(250),
 			_j(150, 50, 260, "ice"), _f(400), _end()]),
 		_lvl("AVALANCHE ALLEY", "snow", 110, "Downhill run-ups. Fast and scary.", [
@@ -75,7 +75,7 @@ static func all() -> Array:
 			_j(160, 60, 360, "ice"), _f(400), _end()]),
 		# --- World 5: Volcano ------------------------------------------------------------
 		_lvl("HOT FOOT", "volcano", 110, "The floor is lava. Literally.", [
-			_f(400), _j(150, 50, 260, "lava"), _f(300), _j(150, 50, 280, "chasm"), _f(300),
+			_f(300), _o("boulder"), _f(400), _j(150, 50, 260, "lava"), _f(300), _j(150, 50, 280, "chasm"), _f(300),
 			_j(150, 55, 300, "lava"), _f(250), _j(150, 55, 300, "lava"), _f(400), _end()]),
 		_lvl("MAGMA MILE", "volcano", 110, "Don't touch the orange stuff.", [
 			_f(350), _h(300, 20), _j(150, 55, 320, "lava"), _f(250), _fuel(), _f(80),
@@ -92,14 +92,64 @@ static func all() -> Array:
 	]
 
 
-static func _lvl(title: String, biome: String, fuel: float, blurb: String, segs: Array) -> Dictionary:
+const SMASHABLES := {
+	"desert": ["crate", "cone", "fence", "barrel", "mailbox"], "jungle": ["crate", "fence", "barrel"],
+	"mountain": ["crate", "cone", "fence", "barrel"], "snow": ["crate", "cone", "fence"],
+	"volcano": ["barrel", "barrel", "crate"], "moon": ["crate", "barrel"],
+}
+const BLOCKERS := {
+	"desert": ["boulder", "barricade"], "jungle": ["log", "boulder"], "mountain": ["boulder", "log"],
+	"snow": ["log", "barricade"], "volcano": ["boulder", "barricade"], "moon": ["boulder"],
+}
+
+
+static func _lvl(title: String, biome: String, fuel: float, blurb: String, segs: Array,
+		blockers := true) -> Dictionary:
 	var flat := []
 	for s in segs:
 		if s is Array:
 			flat.append_array(s)
 		else:
 			flat.append(s)
-	return {"title": title, "biome": biome, "fuel": fuel, "blurb": blurb, "segments": flat}
+	flat = _sprinkle(flat, biome, title, blockers)
+	var ammo := 3
+	for s in flat:
+		if s.t == "obj" and s.kind in BLOCKERS.get(biome, []):
+			ammo += Obstacle.KINDS[s.kind].hp
+	return {"title": title, "biome": biome, "fuel": fuel, "blurb": blurb, "segments": flat, "ammo": ammo}
+
+
+## Puts road clutter on long flat stretches: smashables everywhere, and (after the
+## first levels) a blocker you must shoot. Deterministic per level title.
+static func _sprinkle(segs: Array, biome: String, title: String, blockers: bool) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(title)
+	var out := []
+	var eligible := 0
+	for i in segs.size():
+		var s: Dictionary = segs[i]
+		var next_is_ramp: bool = i + 1 < segs.size() and segs[i + 1].t == "ramp"
+		if s.t != "flat" or s.len < 260 or i == 0 or (i + 1 < segs.size() and segs[i + 1].t == "finish"):
+			out.append(s)
+			continue
+		eligible += 1
+		var after_jump: bool = segs[i - 1].t == "gap"
+		var blocker: bool = blockers and eligible % 2 == 0 and not next_is_ramp and not after_jump and s.len >= 380
+		# Blockers sit deep into the stretch so there's time to see and shoot them.
+		var a: float = s.len * (0.7 if blocker else 0.45)
+		out.append({"t": "flat", "len": a})
+		if blocker:
+			out.append({"t": "obj", "kind": BLOCKERS[biome][rng.randi() % BLOCKERS[biome].size()]})
+		else:
+			var pool: Array = SMASHABLES[biome]
+			for k in rng.randi_range(1, 3):
+				out.append({"t": "obj", "kind": pool[rng.randi() % pool.size()]})
+				out.append({"t": "flat", "len": 14})
+		if eligible % 3 == 0:
+			out.append({"t": "flat", "len": 40})
+			out.append({"t": "ammo"})
+		out.append({"t": "flat", "len": s.len - a})
+	return out
 
 
 static func _f(length: float) -> Dictionary:
@@ -117,6 +167,10 @@ static func _s(length: float, dy: float) -> Dictionary:
 static func _j(ramp_len: float, rise: float, gap_len: float, kind: String, dy := 0.0) -> Array:
 	return [{"t": "ramp", "len": ramp_len, "rise": rise},
 		{"t": "gap", "len": gap_len + GAP_EXTRA, "kind": kind, "dy": dy}]
+
+
+static func _o(kind: String) -> Dictionary:
+	return {"t": "obj", "kind": kind}
 
 
 static func _fuel() -> Dictionary:

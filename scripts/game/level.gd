@@ -33,6 +33,7 @@ var _pause_menu: MenuList
 var _end_panel: Control
 var _anchor: Node2D
 var _teeter_time := 0.0
+var _blocker_hinted := false
 var _arrival := ""  # "", "drive", "brake": scripted roll-in before the countdown
 
 static var bot_report: Array = []
@@ -61,6 +62,7 @@ func _ready() -> void:
 		add_child(_anchor)
 		world.camera.target = _anchor
 		world.camera.snap()
+	bus.ammo = def.get("ammo", 3)
 	_hook_bus()
 	world.start_ambience()
 	_build_hud()
@@ -126,6 +128,7 @@ func _physics_process(delta: float) -> void:
 	var x := c.global_position.x
 	_hud.time.text = "%d.%d" % [int(clock), int(fmod(clock, 1.0) * 10)]
 	_hud.fuel.size.x = roundf(60 * bus.fuel_ratio())
+	_hud.ammo.text = "AMMO %d" % bus.ammo
 	_hud.fuel.color = Color("#ff4aa8") if bus.fuel_ratio() > 0.25 else Color("#ff3b3b")
 
 	var gap := world.terrain.gap_at(x)
@@ -142,6 +145,8 @@ func _physics_process(delta: float) -> void:
 			state = State.FAILED
 			return
 	_tutorial(x)
+	if not _bot:
+		_blocker_hint(x)
 	_chatter(delta, x)
 	# Help a player who is stuck (flipped wheels-up, or sitting still for ages).
 	_stuck_time = _stuck_time + delta if absf(bus.get_speed()) < 5.0 and clock > 3.0 else 0.0
@@ -220,6 +225,20 @@ func _chatter(delta: float, x: float) -> void:
 						"THE ROAD ENDS!"].pick_random(), bus.passengers.DRIVER_LINES.gap.pick_random())
 
 
+func _blocker_hint(x: float) -> void:
+	for o in world.obstacles:
+		if is_instance_valid(o) and o.is_blocker() and o.global_position.x > x and o.global_position.x - x < 420:
+			if not _warned_gaps.has(o):
+				_warned_gaps[o] = true
+				if not _blocker_hinted:
+					_blocker_hinted = true
+					_hint("%s AHEAD!  PRESS F TO FIRE THE CANNON" % o.kind.to_upper())
+				if randf() < 0.6:
+					bus.passengers.exchange(["IS THAT A %s?!" % o.kind.to_upper(), "WATCH OUT!", "STOP THE BUS!"].pick_random(),
+							["I SEE IT.", "HOLD MY COFFEE.", "CANNON TIME!"].pick_random())
+			return
+
+
 func _tutorial(x: float) -> void:
 	if index != 0 or _bot:
 		return
@@ -281,7 +300,7 @@ func _fail(kind: String, reason := "") -> void:
 		return
 	state = State.FAILED
 	if _bot:
-		_bot_done("FAILED", "%s %s at x=%d fuel=%d landings=%s last=%s" % [kind, reason, bus.chassis.global_position.x, bus.fuel, landings, bus.last_landing])
+		_bot_done("FAILED", "%s %s at x=%d fuel=%d ammo=%d landings=%s" % [kind, reason, bus.chassis.global_position.x, bus.fuel, bus.ammo, landings])
 		return
 	await get_tree().create_timer(0.5).timeout
 	if not is_inside_tree(): return
@@ -325,7 +344,13 @@ func _bot_drive() -> void:
 	if bus.airborne:
 		var err := wrapf(c.rotation - target_angle, -PI, PI)
 		right = -clampf(err * 2.0 + c.angular_velocity * 2.5, -1.0, 1.0)  # + = nose down
-	bus.ai_input = {"right": right, "fire": fire and not "--norocket" in _args}
+	var shoot := false
+	for o in world.obstacles:  # blast blockers in the way
+		if is_instance_valid(o) and (o.is_blocker() or o.kind == "barrel"):
+			var ahead: float = o.global_position.x - p.x
+			if ahead > 0 and ahead < 420 and not bus.airborne:
+				shoot = true
+	bus.ai_input = {"right": right, "fire": fire and not "--norocket" in _args, "shoot": shoot}
 	if "--trace" in _args and Engine.get_physics_frames() % 6 == 0:
 		print("TRACE x=%d y=%d rot=%.1f tgt=%.1f spin=%.2f air=%s fire=%s right=%.2f v=(%d,%d)" % [p.x, p.y,
 				rad_to_deg(c.rotation), rad_to_deg(target_angle), c.angular_velocity, bus.airborne, fire, right, v.x, v.y])
@@ -370,10 +395,11 @@ func _build_hud() -> void:
 	fill.size = Vector2(60, 6)
 	layer.add_child(fill)
 	_hud.fuel = fill
+	_hud.ammo = _label(layer, "AMMO %d" % bus.ammo, Vector2(364, 22), 8, Color("#b8e060"), 2)
 	_hud.hint = _label(layer, "", Vector2(0, 238), 8, Color("#ffffff"), 2)
 	_hud.hint.size.x = 480
 	_hud.hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_label(layer, "R RETRY   ESC PAUSE   H HORN", Vector2(0, 256), 8, Color(1, 1, 1, 0.45), 0).size.x = 480
+	_label(layer, "F CANNON   R RETRY   ESC PAUSE   H HORN", Vector2(0, 256), 8, Color(1, 1, 1, 0.45), 0).size.x = 480
 	layer.get_child(-1).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 

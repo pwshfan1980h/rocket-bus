@@ -436,6 +436,58 @@ def splat():
     return env([a + b * 0.8 for a, b in zip(n, body)], decay(0.07))
 
 
+def cannon():
+    boom = env(osc(lambda t: 110 * math.exp(-t * 9) + 45, 0.5), decay(0.12))
+    crack = env(highpass(noise(0.12, 501), 1500), decay(0.02))
+    body = env(lowpass(noise(0.4, 502), lambda t: 3000 * math.exp(-t * 10) + 200), decay(0.08))
+    x = mix(mix(silence(0.6), boom), crack, 0, 0.8)
+    mix(x, body, 0, 0.7)
+    mix(x, clank(), 0.12, 0.25)  # breech clack
+    return drive(x, 1.8)
+
+
+def explosion():
+    dur = 1.6
+    boom = env(osc(lambda t: 70 * math.exp(-t * 3) + 30, dur), decay(0.4))
+    roar = env(lowpass(noise(dur, 511), lambda t: 5000 * math.exp(-t * 3) + 120), decay(0.45))
+    x = mix(silence(dur), boom, 0, 1.0)
+    mix(x, roar, 0, 0.9)
+    rng = random.Random(512)
+    for _ in range(30):
+        mix(x, env(noise(0.02, rng.randint(0, 999)), decay(0.006)), rng.uniform(0.05, 1.0), rng.uniform(0.1, 0.4))
+    return drive(x, 1.6)
+
+
+def wood_break():
+    x = silence(0.6)
+    rng = random.Random(521)
+    for _ in range(9):
+        crack = env(bandpass(noise(0.08, rng.randint(0, 999)), 600, 3500), decay(rng.uniform(0.01, 0.03)))
+        mix(x, crack, rng.uniform(0, 0.25), rng.uniform(0.4, 1.0))
+    mix(x, env(osc(lambda t: 180 - 80 * t, 0.3, "triangle"), decay(0.06)), 0, 0.5)
+    return x
+
+
+def rock_break():
+    x = silence(0.8)
+    x = mix(x, env(lowpass(noise(0.6, 531), lambda t: 2000 * math.exp(-t * 5) + 150), decay(0.15)), 0, 1.0)
+    rng = random.Random(532)
+    for _ in range(12):
+        mix(x, env(lowpass(noise(0.03, rng.randint(0, 999)), 1500), decay(0.01)), rng.uniform(0.05, 0.6), rng.uniform(0.2, 0.6))
+    return mix(x, env(osc(lambda t: 60 - 20 * t, 0.5), decay(0.12)), 0, 0.8)
+
+
+def plastic_bonk():
+    return env(osc(lambda t: 520 * math.exp(-t * 8) + 220, 0.2, "triangle"), decay(0.05))
+
+
+def ammo_pickup():
+    x = silence(0.4)
+    for i, n in enumerate((60, 67, 72)):
+        mix(x, env(osc(midi(n), 0.1, "square", 0.5), decay(0.03)), i * 0.07, 0.5)
+    return mix(x, clank(), 0.0, 0.3)
+
+
 def cheer():
     x = silence(1.3)
     rng = random.Random(7)
@@ -838,7 +890,7 @@ SFX = [
     amb_jungle_loop, amb_mountain_loop, amb_snow_loop, amb_volcano_loop, amb_city_loop,
     jingle_perfect, jingle_good, sting_hard, sting_crash, ui_move, ui_select, ui_back, ui_start,
     count_beep, count_go, gap_cleared, star, score_tick, level_clear, fail_jingle, title_slam,
-    typewriter,
+    typewriter, cannon, explosion, wood_break, rock_break, plastic_bonk, ammo_pickup,
 ]
 
 

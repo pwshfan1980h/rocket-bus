@@ -10,8 +10,10 @@ var terrain: Terrain  ## optional: lets height above the road widen the view
 var dynamic_zoom := true
 ## Cinematic override (e.g. the finish pull-back). NAN = automatic.
 var zoom_override := NAN
+const LEAD_MAX := 150.0  ## how far ahead (px) the view slides at full speed
 var _shake := 0.0
 var _zoom := 1.0
+var _lead := 0.0  ## slow horizontal lead in the direction of travel
 
 
 func _ready() -> void:
@@ -19,6 +21,7 @@ func _ready() -> void:
 
 
 func snap() -> void:
+	_lead = 0.0
 	if target:
 		global_position = _goal()
 	_zoom = _target_zoom()
@@ -27,6 +30,11 @@ func snap() -> void:
 
 func _process(delta: float) -> void:
 	if target and is_instance_valid(target):
+		# Lead drifts out slowly as speed builds, and settles back just as gently.
+		var want_lead := 0.0
+		if target is RigidBody2D:
+			want_lead = clampf((target as RigidBody2D).linear_velocity.x / 420.0, -0.4, 1.0) * LEAD_MAX
+		_lead = lerpf(_lead, want_lead, 1.0 - exp(-0.8 * delta))
 		global_position = global_position.lerp(_goal(), 1.0 - exp(-5.0 * delta))
 	var want := _target_zoom()
 	# Pull out briskly when things get fast, drift back in slowly so it never feels twitchy.
@@ -56,7 +64,7 @@ func _target_zoom() -> float:
 
 
 func _goal() -> Vector2:
-	var look := Vector2.ZERO
+	var look := Vector2(_lead, 0)
 	if target is RigidBody2D:
-		look = (target as RigidBody2D).linear_velocity * Vector2(0.3, 0.12)
-	return target.global_position + Vector2(0, -30) + look.limit_length(130)
+		look.y = clampf((target as RigidBody2D).linear_velocity.y * 0.12, -60, 60)
+	return target.global_position + Vector2(0, -30) + look
