@@ -409,6 +409,7 @@ func honk() -> void:
 func hazard(kind: String, surface: Vector2) -> void:
 	if in_hazard != "" or is_crashed:
 		return
+	passengers.event(kind)
 	in_hazard = kind
 	_set_flames(false)
 	rocket_firing = false
@@ -517,6 +518,8 @@ func _rocket(on: bool, delta: float) -> void:
 	if on != rocket_firing:
 		rocket_firing = on
 		_set_flames(on)
+		if on:
+			passengers.event("rocket")
 	_animate_flames(delta)
 
 
@@ -601,6 +604,7 @@ func _announce(grade: String) -> void:
 func _crash(reason: String) -> void:
 	if is_crashed:
 		return
+	passengers.event("crash")
 	is_crashed = true
 	last_landing.grade = "crash"
 	var at := chassis.global_position + Vector2(0, -52)

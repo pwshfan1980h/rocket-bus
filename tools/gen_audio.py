@@ -406,6 +406,18 @@ def voice_glub():
     return mix(x, bubbles(0.3, 6), 0, 0.5)
 
 
+def voice_driver():
+    """Gruff, low driver grumble."""
+    x = voice(lambda t: 150 - 30 * t + 8 * math.sin(t * 25), 0.35, (480, 900), 21)
+    return drive(x, 1.8)
+
+
+def voice_driver_shout():
+    """Driver bellowing HOLD ON!"""
+    x = voice(lambda t: 180 + 60 * min(1, t / 0.15) - 40 * max(0, t - 0.3), 0.6, (600, 1100), 22)
+    return drive(x, 2.2)
+
+
 def cheer():
     x = silence(1.3)
     rng = random.Random(7)
@@ -803,7 +815,7 @@ MUSIC = {
 SFX = [
     engine_loop, vroom, rocket_loop, rocket_ignite, rocket_sputter, land_soft, land_hard, spring_creak,
     clank, creak_a, creak_b, creak_c, rattle, glass, crash, splash, bubbles, lava_sizzle, fall_whistle, horn, skid, wind_loop,
-    fuel_pickup, fuel_low, voice_blip, voice_happy, voice_hurt, voice_scream, voice_glub, cheer,
+    fuel_pickup, fuel_low, voice_blip, voice_driver, voice_driver_shout, voice_happy, voice_hurt, voice_scream, voice_glub, cheer,
     groan, bird_flap, bird_chirp, lizard_scurry, bug_buzz_loop, rustle, amb_desert_loop,
     amb_jungle_loop, amb_mountain_loop, amb_snow_loop, amb_volcano_loop, amb_city_loop,
     jingle_perfect, jingle_good, sting_hard, sting_crash, ui_move, ui_select, ui_back, ui_start,

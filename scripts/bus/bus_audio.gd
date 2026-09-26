@@ -61,6 +61,7 @@ func _physics_process(delta: float) -> void:
 	if not _low_fuel_warned and bus.fuel < bus.fuel_capacity * 0.25:
 		_low_fuel_warned = true
 		Audio.play("fuel_low", -6.0)
+		bus.passengers.event("fuel_low")
 	elif bus.fuel > bus.fuel_capacity * 0.3:
 		_low_fuel_warned = false
 

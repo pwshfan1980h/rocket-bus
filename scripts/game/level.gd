@@ -86,6 +86,7 @@ func _intro() -> void:
 		bus.ai_input = {}
 		bus.controls_enabled = false
 		world.camera.target = bus.chassis
+		bus.passengers.event("start")
 	var card := _label(_hud.layer, "%s  %s" % [Levels.code(index), def.title], Vector2(0, 90), 16, Color("#ffcc26"), 4)
 	card.size.x = 480
 	card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -206,13 +207,17 @@ func _chatter(delta: float, x: float) -> void:
 	_chatter_timer -= delta
 	if _chatter_timer <= 0.0:
 		_chatter_timer = randf_range(9.0, 16.0)
-		bus.passengers.chatter(Biomes.get_biome(def.biome).chatter.pick_random())
+		var remark: String = Biomes.get_biome(def.biome).chatter.pick_random()
+		if randf() < 0.4:
+			bus.passengers.exchange(remark, bus.passengers.DRIVER_LINES.reply.pick_random(), "voice_blip")
+		else:
+			bus.passengers.chatter(remark)
 	for r in world.terrain.ramps:
 		if not _warned_gaps.has(r.x0) and x > r.x0 - 260 and x < r.x0:
 			_warned_gaps[r.x0] = true
-			if randf() < 0.55:
-				bus.passengers.chatter(["IS THAT A GAP?!", "UH... DRIVER?", "WE'RE NOT STOPPING?!",
-						"HOLD ON TO YOUR HATS!"].pick_random(), "voice_hurt")
+			if randf() < 0.6:
+				bus.passengers.exchange(["IS THAT A GAP?!", "UH... DRIVER?", "WE'RE NOT STOPPING?!",
+						"THE ROAD ENDS!"].pick_random(), bus.passengers.DRIVER_LINES.gap.pick_random())
 
 
 func _tutorial(x: float) -> void:
@@ -247,6 +252,7 @@ func _win() -> void:
 	world.camera.target = null
 	world.camera.zoom_override = 0.72
 	bus.passengers.react("perfect")
+	bus.passengers.event("finish")
 	Audio.play("level_clear", -2.0)
 	Audio.play("cheer", -6.0)
 	Audio.music("music_results")

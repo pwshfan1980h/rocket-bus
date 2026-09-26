@@ -50,7 +50,7 @@ func _run() -> void:
 	if not await _wait(1.0): return
 	bus.honk()
 	if not await _wait(0.5): return
-	bus.passengers.chatter("HOLD ON TO YOUR HATS!", "voice_happy")
+	bus.passengers.driver_say("HOLD ON TO YOUR HATS!", true, true)
 	Audio.music("music_menu", 0.2)
 	if not await _wait(0.6): return
 	_phase = "go"
