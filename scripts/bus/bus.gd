@@ -653,12 +653,27 @@ func _break_apart() -> void:
 		axle.angular_velocity = randf_range(-12.0, 12.0)
 
 	passengers.eject(self, vel)
+	if Gore.enabled():
+		_blood_smear()
 	_spark_burst(xf * Vector2(0, 18))
 	var tw := create_tween()
 	for i in 3:  # lights die with a flicker
 		tw.tween_callback(_set_bus_lights.bind(false)).set_delay(0.06)
 		tw.tween_callback(_set_bus_lights.bind(true)).set_delay(0.08)
 	tw.tween_callback(_set_bus_lights.bind(false)).set_delay(0.1)
+
+
+## Red smears inside the wreck (the core frame is all that's left).
+func _blood_smear() -> void:
+	var smear := Node2D.new()
+	var blobs := []
+	for i in 16:
+		blobs.append(Rect2(randf_range(-38, 36), randf_range(4, 16), randf_range(2, 6), randf_range(1, 3)))
+	smear.draw.connect(func():
+		for b in blobs:
+			smear.draw_rect(b, Gore.BLOOD.lerp(Gore.BLOOD_DARK, randf()))
+			smear.draw_rect(Rect2(b.position + Vector2(1, b.size.y), Vector2(1, randf_range(2, 5))), Gore.BLOOD_DARK))
+	_skin.add_child(smear)
 
 
 func _shatter_glass(xf: Transform2D, vel: Vector2) -> void:

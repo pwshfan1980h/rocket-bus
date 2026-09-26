@@ -418,6 +418,24 @@ def voice_driver_shout():
     return drive(x, 2.2)
 
 
+def squelch():
+    """Wet tearing: filtered noise with a falling pitch."""
+    dur = 0.45
+    n = lowpass(noise(dur, 401), lambda t: 2500 * math.exp(-t * 6) + 300)
+    tone_ = osc(lambda t: 320 * math.exp(-t * 5) + 60, dur, "triangle")
+    x = [a * 0.9 + b * 0.35 for a, b in zip(n, tone_)]
+    x = env(x, lambda t: min(1, t / 0.01) * math.exp(-t * 7) * (0.6 + 0.4 * math.sin(t * 90)))
+    return mix(x, bubbles(0.3, 402), 0.05, 0.25)
+
+
+def splat():
+    """Short wet thud."""
+    dur = 0.25
+    n = lowpass(noise(dur, 411), lambda t: 1600 * math.exp(-t * 14) + 200)
+    body = env(osc(lambda t: 110 - 60 * t, dur), decay(0.05))
+    return env([a + b * 0.8 for a, b in zip(n, body)], decay(0.07))
+
+
 def cheer():
     x = silence(1.3)
     rng = random.Random(7)
@@ -815,7 +833,7 @@ MUSIC = {
 SFX = [
     engine_loop, vroom, rocket_loop, rocket_ignite, rocket_sputter, land_soft, land_hard, spring_creak,
     clank, creak_a, creak_b, creak_c, rattle, glass, crash, splash, bubbles, lava_sizzle, fall_whistle, horn, skid, wind_loop,
-    fuel_pickup, fuel_low, voice_blip, voice_driver, voice_driver_shout, voice_happy, voice_hurt, voice_scream, voice_glub, cheer,
+    fuel_pickup, fuel_low, voice_blip, voice_driver, voice_driver_shout, voice_happy, voice_hurt, voice_scream, voice_glub, squelch, splat, cheer,
     groan, bird_flap, bird_chirp, lizard_scurry, bug_buzz_loop, rustle, amb_desert_loop,
     amb_jungle_loop, amb_mountain_loop, amb_snow_loop, amb_volcano_loop, amb_city_loop,
     jingle_perfect, jingle_good, sting_hard, sting_crash, ui_move, ui_select, ui_back, ui_start,

@@ -11,6 +11,7 @@ var stars := {}  # level index -> 0..3
 var best := {}  # level index -> score
 var music_on := true
 var sfx_on := true
+var gore_on := true
 var seen_intro := false
 
 
@@ -23,6 +24,7 @@ func _ready() -> void:
 		best = cfg.get_value("progress", "best", {})
 		music_on = cfg.get_value("settings", "music", true)
 		sfx_on = cfg.get_value("settings", "sfx", true)
+		gore_on = cfg.get_value("settings", "gore", true)
 	apply_audio()
 
 
@@ -33,6 +35,7 @@ func save() -> void:
 	cfg.set_value("progress", "best", best)
 	cfg.set_value("settings", "music", music_on)
 	cfg.set_value("settings", "sfx", sfx_on)
+	cfg.set_value("settings", "gore", gore_on)
 	cfg.save(PATH)
 
 

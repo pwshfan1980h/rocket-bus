@@ -40,7 +40,7 @@ func _ready() -> void:
 	_label(ui, "TIME THE ROCKET.  LAND IT LEVEL.", Vector2(0, 66), 8, Color.WHITE, 2)
 	var entries := [["start", "START" if GameState.unlocked <= 1 else "CONTINUE  %s" % Levels.code(GameState.unlocked - 1)],
 		["select", "LEVEL SELECT"], ["lab", "BUS LAB"], ["music", _onoff("MUSIC", GameState.music_on)],
-		["sfx", _onoff("SOUND", GameState.sfx_on)]]
+		["sfx", _onoff("SOUND", GameState.sfx_on)], ["gore", _onoff("GORE", GameState.gore_on)]]
 	if OS.get_name() != "Web":
 		entries.append(["quit", "QUIT"])
 	menu = MenuList.new().setup(entries, 8, 14)
@@ -87,6 +87,10 @@ func _on_choice(id: String) -> void:
 			GameState.sfx_on = not GameState.sfx_on
 			menu.set_text("sfx", _onoff("SOUND", GameState.sfx_on))
 			GameState.apply_audio()
+			GameState.save()
+		"gore":
+			GameState.gore_on = not GameState.gore_on
+			menu.set_text("gore", _onoff("GORE", GameState.gore_on))
 			GameState.save()
 		"quit":
 			get_tree().quit()
