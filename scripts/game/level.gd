@@ -527,13 +527,6 @@ func _bot_drive() -> void:
 			fire = p.x + v.x * t < next.x1 + 130 or not clears or not bus.airborne
 			if not clears and bus.airborne:
 				target_angle = -0.3  # too low for the far lip: nose up so the rocket lifts
-			var is_drop := true
-			for r in world.terrain.ramps:
-				if absf(r.lip_x - next.x0) < 2.0:
-					is_drop = false
-			if is_drop and bus.airborne and p.x < next.x1:
-				# Off a sheer edge the bus tips nose-down: hold the nose up while crossing.
-				target_angle = minf(target_angle, -0.12)
 	if bus.airborne:
 		var err := wrapf(c.rotation - target_angle, -PI, PI)
 		right = -clampf(err * 2.0 + c.angular_velocity * 2.5, -1.0, 1.0)  # + = nose down

@@ -34,8 +34,8 @@ const RECIPES := [
 	["CRATER HOPPER", "moon", "Craters everywhere. Float between them.", 6, ["chasm"], [520, 680], 50, 65, {}],
 	["DARK SIDE", "moon", "Nobody's out here to see you crash.", 7, ["chasm"], [560, 740], 60, 60, {}],
 	["EARTHRISE", "moon", "The last stop is 238,900 miles from home.", 8, ["chasm"], [600, 800], 70, 60, {}],
-	["ANOMALOUS RIDE", "border", "Drive off the edge. Boost. Land. Repeat.", 8, ["chasm"], [260, 320], 50, 140,
-		{"drops": 0.75, "blockers": false}],
+	["ANOMALOUS RIDE", "border", "Floating islands. Don't look down.", 8, ["chasm"], [260, 320], 50, 140,
+		{"blockers": false}],
 ]
 const SMASHABLES := {
 	"desert": ["crate", "cone", "fence", "barrel", "mailbox"], "jungle": ["crate", "fence", "barrel"],
@@ -81,7 +81,6 @@ static func _build(index: int, r: Array) -> Dictionary:
 	var opts: Dictionary = r[8]
 	var blockers: bool = opts.get("blockers", true)
 	var zone: String = opts.get("zone", "")
-	var drop_chance: float = opts.get("drops", 0.3)
 	var difficulty := clampf(index / 23.0, 0.0, 1.0)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(title)
@@ -133,18 +132,10 @@ static func _build(index: int, r: Array) -> Dictionary:
 		segs.append(_f(rng.randf_range(380, 520)))
 		var gap_len := rng.randf_range(gap_range[0], gap_range[1])
 		var kind: String = kinds[rng.randi() % kinds.size()]
-		if index >= 2 and rng.randf() < drop_chance:
-			# Sheer drop-off: no ramp, the road just ends. Drive off, pitch up, boost across,
-			# level out; the far side is lower.
-			# Deeper and a bit shorter than ramp gaps: the fall buys distance, the boost the rest.
-			var drop := rng.randf_range(130, 220)
-			height += drop
-			segs.append({"t": "gap", "len": gap_len * 0.65 + 70.0, "kind": kind, "dy": drop})
-		else:
-			# Far sides can drop a lot but only rise a little (rising landings are brutal).
-			var land_dy := 0.0 if dy_range <= 0 else rng.randf_range(-minf(dy_range, 30.0), dy_range)
-			height += land_dy
-			segs.append_array(_j(rng.randf_range(140, 170), rng.randf_range(45, 60), gap_len, kind, land_dy))
+		# Far sides can drop a lot but only rise a little (rising landings are brutal).
+		var land_dy := 0.0 if dy_range <= 0 else rng.randf_range(-minf(dy_range, 30.0), dy_range)
+		height += land_dy
+		segs.append_array(_j(rng.randf_range(140, 170), rng.randf_range(45, 60), gap_len, kind, land_dy))
 		segs.append(_f(rng.randf_range(420, 560)))  # landing strip
 		if (j + 1) % CHECKPOINT_EVERY == 0 and j < jumps - 1:
 			segs.append({"t": "checkpoint"})
