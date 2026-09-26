@@ -148,6 +148,8 @@ var _since_landing := 99.0
 var _skin: Node2D
 var _cannon: Sprite2D
 var _cannon_cd := 0.0
+var _reload := 0.0  ## an empty cannon slowly reloads one slug at a time
+const RELOAD_TIME := 3.0
 var _glass: Sprite2D
 var _smoke: CPUParticles2D
 
@@ -373,6 +375,14 @@ func _physics_process(delta: float) -> void:
 	throttle = right
 	wants_fire = fire
 	_cannon_cd -= delta
+	if ammo <= 0:
+		_reload += delta
+		if _reload >= RELOAD_TIME:
+			_reload = 0.0
+			ammo = 1
+			Audio.play("ammo_pickup", -8.0)
+	else:
+		_reload = 0.0
 	var shoot: bool = ai_input.get("shoot", false) if not ai_input.is_empty() \
 			else Input.is_action_just_pressed("fire")
 	if shoot and controls_enabled:

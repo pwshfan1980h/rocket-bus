@@ -41,8 +41,8 @@ const SMASHABLES := {
 	"volcano": ["barrel", "barrel", "crate"], "moon": ["crate", "barrel"],
 }
 const BLOCKERS := {
-	"desert": ["boulder", "barricade"], "jungle": ["log", "boulder"], "mountain": ["boulder", "log"],
-	"snow": ["log", "barricade"], "volcano": ["boulder", "barricade"], "moon": ["boulder"],
+	"desert": ["boulder", "barricade"], "jungle": ["boulder", "barricade"], "mountain": ["boulder", "barricade"],
+	"snow": ["barricade", "boulder"], "volcano": ["boulder", "barricade"], "moon": ["boulder"],
 }
 const CHECKPOINT_EVERY := 3  ## jumps between checkpoints
 const FUEL_EVERY := 2  ## jumps between fuel cans

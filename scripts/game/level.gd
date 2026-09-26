@@ -79,7 +79,9 @@ func _ready() -> void:
 		add_child(_anchor)
 		world.camera.target = _anchor
 		world.camera.snap()
-	bus.ammo = def.get("ammo", 3)
+	bus.ammo = 0 if "--noammo" in _args else def.get("ammo", 3)
+	if "--noreload" in _args:
+		bus.set("_reload", -INF)  # test hook: the cannon never refills
 	if not _resume.is_empty():
 		bus.fuel = _resume.fuel
 		bus.ammo = _resume.ammo
@@ -161,7 +163,7 @@ func _physics_process(delta: float) -> void:
 	var x := c.global_position.x
 	_hud.time.text = "%d.%d" % [int(clock), int(fmod(clock, 1.0) * 10)]
 	_hud.fuel.size.x = roundf(60 * bus.fuel_ratio())
-	_hud.ammo.text = "AMMO %d" % bus.ammo
+	_hud.ammo.text = "AMMO %d" % bus.ammo if bus.ammo > 0 else "RELOADING"
 	_hud.fuel.color = Color("#ff4aa8") if bus.fuel_ratio() > 0.25 else Color("#ff3b3b")
 
 	var zone := ""
@@ -529,6 +531,8 @@ func _bot_drive() -> void:
 			var ahead: float = o.global_position.x - p.x
 			if ahead > 0 and ahead < 520 and absf(wrapf(c.rotation, -PI, PI)) < 0.45:
 				shoot = true
+			if bus.ammo <= 0 and ahead > -20 and ahead < 300 and not bus.airborne:
+				right = 1.0 if bus.get_speed() < 90.0 else -1.0  # no ammo: crawl up and shove
 	bus.ai_input = {"right": right, "fire": fire and not "--norocket" in _args, "shoot": shoot}
 	if "--trace" in _args and Engine.get_physics_frames() % 6 == 0:
 		print("TRACE x=%d y=%d rot=%.1f tgt=%.1f spin=%.2f air=%s fire=%s right=%.2f v=(%d,%d)" % [p.x, p.y,

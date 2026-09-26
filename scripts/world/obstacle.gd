@@ -2,7 +2,8 @@ class_name Obstacle
 extends Node2D
 ## Stuff in the road. Smashables (crates, cones, fences, mailboxes, barrels) burst
 ## apart when the bus plows through; barrels explode. Blockers (boulders, logs,
-## barricades) are solid: shoot them with the bumper cannon or hit them and wreck.
+## barricades) are solid: shoot them with the bumper cannon, or shove into them slowly
+## and the bumper grinds them down. Hitting one fast wrecks the bus.
 
 signal destroyed(obstacle: Obstacle)
 
@@ -20,6 +21,7 @@ const LAYER_BLOCKER := 16
 const LAYER_SMASH := 32
 const CRASH_SPEED := 220.0
 const BLAST_RADIUS := 95.0
+const SHOVE_EVERY := 0.6  ## seconds of slow bumper contact per point of damage
 
 var kind := "crate"
 var hp := 1
@@ -28,6 +30,7 @@ var _flash := 0.0
 var _dead := false
 var _area: Area2D
 var _solid: StaticBody2D
+var _shove := 0.0
 
 
 func setup(k: String) -> Obstacle:
@@ -73,6 +76,30 @@ func _process(delta: float) -> void:
 	if _flash > 0.0:
 		_flash -= delta
 		queue_redraw()
+	if spec.blocker and not _dead:
+		_grind(delta)
+
+
+## Pushing a blocker slowly with the bus grinds it down (the no-ammo way through).
+func _grind(delta: float) -> void:
+	var pushing := false
+	for body in _area.get_overlapping_bodies():
+		var bus := body.get_parent() as Bus
+		if bus and not bus.is_crashed and bus.throttle > 0.0:
+			pushing = true
+			if _shove == 0.0:
+				bus.passengers.driver_say(["PUSH IT!", "COME ON, MOVE!", "BULLDOZER MODE!"].pick_random(), true)
+	if not pushing:
+		_shove = 0.0
+		return
+	_shove += delta
+	if _shove >= SHOVE_EVERY:
+		_shove = 0.001
+		if "--trace" in OS.get_cmdline_user_args():
+			print("SHOVE %s hp=%d" % [kind, hp - 1])
+		Fx.shake(2.0)
+		Audio.play_at("rock_break" if kind == "boulder" else "wood_break", global_position, -8.0, 0.2)
+		damage(1, Vector2.RIGHT)
 
 
 func _on_bus(body: Node) -> void:
