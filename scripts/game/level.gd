@@ -21,6 +21,7 @@ var landings: Array[String] = []
 var cleared := 0
 var _args := PackedStringArray()
 var _bot := false
+var _skip_intro := false  ## batch bot runs skip the roll-in and countdown
 var _hud := {}
 var _hint_step := 0
 var _chatter_timer := 8.0
@@ -29,6 +30,9 @@ var _stuck_time := 0.0
 var _pause_panel: Control
 var _pause_menu: MenuList
 var _end_panel: Control
+var _anchor: Node2D
+var _teeter_time := 0.0
+var _arrival := ""  # "", "drive", "brake": scripted roll-in before the countdown
 
 static var bot_report: Array = []
 
@@ -39,15 +43,25 @@ func _ready() -> void:
 		if a.begins_with("--level=") and bot_report.is_empty():
 			GameState.current_level = int(a.substr(8))
 	_bot = "--bot" in _args or "--botall" in _args
+	_skip_intro = "--botall" in _args or "--fast" in _args
 	if _bot:
-		Engine.time_scale = 3.0 if "--fast" in _args else 1.0
+		Engine.time_scale = 3.0 if "--fast" in _args else GameState.PACE
 	index = GameState.current_level
 	def = Levels.get_level(index)
 	world = World.new().build(def.biome, def.segments)
 	add_child(world)
 	world.fuel_collected.connect(func(_c): if bus: bus.passengers.chatter(["YUM, GAS!", "REFUEL!", "GLUG GLUG"].pick_random(), "voice_happy"))
 	world.life.birds_flushed.connect(_on_birds)
-	bus = world.spawn_bus(Vector2.INF, def.fuel)
+	var start := world.terrain.start_position()
+	if _skip_intro:
+		bus = world.spawn_bus(start, def.fuel)
+	else:  # roll in from off-screen, then stop at the line
+		bus = world.spawn_bus(start + Vector2(-560, 0), def.fuel, Vector2(260, 0))
+		_anchor = Node2D.new()
+		_anchor.position = start + Vector2(40, -10)
+		add_child(_anchor)
+		world.camera.target = _anchor
+		world.camera.snap()
 	_hook_bus()
 	world.start_ambience()
 	_build_hud()
@@ -63,6 +77,16 @@ func _hook_bus() -> void:
 
 func _intro() -> void:
 	state = State.INTRO
+	if not _skip_intro:
+		bus.controls_enabled = true
+		_arrival = "drive"
+		Audio.play("vroom", -2.0)
+		while is_inside_tree() and _arrival != "":
+			await get_tree().physics_frame
+		if not is_inside_tree(): return
+		bus.ai_input = {}
+		bus.controls_enabled = false
+		world.camera.target = bus.chassis
 	var card := _label(_hud.layer, "%s  %s" % [Levels.code(index), def.title], Vector2(0, 90), 16, Color("#ffcc26"), 4)
 	card.size.x = 480
 	card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -73,12 +97,12 @@ func _intro() -> void:
 			Vector2(0, 128), 8, Color("#3cf0dc"), 2)
 	gaps_l.size.x = 480
 	gaps_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var wait := 0.3 if _bot else 1.6
+	var wait := 0.3 if _skip_intro else 1.6
 	await get_tree().create_timer(wait).timeout
 	if not is_inside_tree(): return
 	for n in [card, blurb, gaps_l]:
 		n.queue_free()
-	if not _bot:
+	if not _skip_intro:
 		for c in ["3", "2", "1"]:
 			_big_center(c, Color.WHITE)
 			Audio.play("count_beep", -4.0)
@@ -93,6 +117,8 @@ func _intro() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _arrival != "" and is_instance_valid(bus):
+		_drive_in()
 	if state != State.PLAY or not is_instance_valid(bus) or bus.chassis == null:
 		return
 	clock += delta
@@ -111,12 +137,38 @@ func _physics_process(delta: float) -> void:
 		return
 	if _bot:
 		_bot_drive()
+		if clock > 60.0:
+			_bot_done("FAILED", "timeout: stuck at x=%d speed=%d" % [x, bus.get_speed()])
+			state = State.FAILED
+			return
 	_tutorial(x)
 	_chatter(delta, x)
 	# Help a player who is stuck (flipped wheels-up, or sitting still for ages).
 	_stuck_time = _stuck_time + delta if absf(bus.get_speed()) < 5.0 and clock > 3.0 else 0.0
+	_teeter(delta)
 	if _stuck_time > 4.0 and _hud.hint.text == "":
 		_hint("STUCK?  PRESS R TO RETRY")
+
+
+## Stalled with a wheel hanging over a gap (e.g. beached on the far lip): wobble,
+## then tip off into it instead of sitting there forever.
+func _teeter(delta: float) -> void:
+	var hanging := false
+	for w in bus.wheels:
+		if not world.terrain.gap_at(w.global_position.x).is_empty():
+			hanging = true
+	if not hanging or absf(bus.get_speed()) > 12.0:
+		_teeter_time = 0.0
+		return
+	_teeter_time += delta
+	if _teeter_time > 0.4 and _teeter_time - delta <= 0.4:
+		bus.passengers.chatter(["WE'RE TEETERING!", "DON'T MOVE!", "UH OH..."].pick_random(), "voice_hurt")
+		Audio.play("creak_b", -4.0)
+	if _teeter_time > 1.4:
+		var back := bus.chassis.global_transform.x * -1.0
+		bus.chassis.apply_central_impulse((back * 90.0 + Vector2(0, 60)) * bus.chassis.mass)
+		bus.chassis.apply_torque_impulse(-2500.0)
+		_teeter_time = 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -176,11 +228,28 @@ func _tutorial(x: float) -> void:
 		_hint("IN THE AIR:  A / D  TO TILT.  LAND FLAT!")
 
 
+## Scripted roll-in: drive toward the start line and brake to a stop on it.
+func _drive_in() -> void:
+	var x := bus.chassis.global_position.x - world.terrain.start_position().x
+	if _arrival == "drive" and x > -150:
+		_arrival = "brake"
+	if _arrival == "drive":
+		bus.ai_input = {"right": 0.8, "fire": false}
+	else:
+		bus.ai_input = {"right": -1.0 if bus.get_speed() > 8.0 else 0.0, "fire": false}
+		if absf(bus.get_speed()) < 8.0:
+			_arrival = ""
+
+
 func _win() -> void:
 	state = State.WON
-	bus.controls_enabled = false
+	# The computer takes the wheel and drives off-screen while the camera pulls back.
+	bus.ai_input = {"right": 0.9, "fire": false}
+	world.camera.target = null
+	world.camera.zoom_override = 0.72
 	bus.passengers.react("perfect")
 	Audio.play("level_clear", -2.0)
+	Audio.play("cheer", -6.0)
 	Audio.music("music_results")
 	_big_center("BUS STOP!", Color("#ffcc26"))
 	var fuel_left := bus.fuel
@@ -197,7 +266,7 @@ func _win() -> void:
 		_bot_done("WON", "fuel=%d landings=%s time=%.1f" % [fuel_left, landings, clock])
 		return
 	GameState.record(index, score, stars)
-	await get_tree().create_timer(1.6).timeout
+	await get_tree().create_timer(2.6).timeout
 	if not is_inside_tree(): return
 	_show_results(score, stars, fuel_left, time_bonus)
 
@@ -258,6 +327,8 @@ func _bot_drive() -> void:
 
 
 func _bot_done(result: String, detail: String) -> void:
+	if not _skip_intro:  # single showcase run: let the finish play out
+		await get_tree().create_timer(3.5).timeout
 	var line := "%s %-16s %s  %s" % [Levels.code(index), def.title, result, detail]
 	print("BOT ", line)
 	bot_report.append(line)

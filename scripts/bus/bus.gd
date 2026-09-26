@@ -47,8 +47,8 @@ const LAYER_DEBRIS := 4
 @export var chassis_mass := 1.0
 @export var center_of_mass := Vector2(5, 5)  ## +y is lower. The engine pulls it forward.
 @export_group("Suspension")
-@export var spring_stiffness := 90.0
-@export var spring_damping := 1.4
+@export var spring_stiffness := 85.0
+@export var spring_damping := 0.5  ## low = bouncy landings
 @export var spring_preload := 5.0  ## extra rest length; holds the ride height
 @export_group("Drive")
 @export var drive_torque := 2600.0

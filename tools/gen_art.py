@@ -10,6 +10,7 @@ The canvas has OY rows of headroom above the roof for the roof sign.
 """
 import math
 import os
+import random
 import struct
 import zlib
 
@@ -19,6 +20,8 @@ OUT = os.path.join(ROOT, "assets", "sprites")
 W, H, OY = 100, 53, 7  # body is 80 wide + a 20px school-bus hood
 
 CLEAR = (0, 0, 0, 0)
+STORE = {}  # name -> Canvas, filled by Canvas.save
+RUST = [(138, 74, 42), (168, 96, 46), (106, 58, 36), (190, 120, 60)]
 
 # --- Palette (Crazy-Taxi-ish: loud yellow, checker, hot pink, teal) ---
 YEL = (255, 204, 38)
@@ -79,6 +82,7 @@ class Canvas:
                 self.set(x, y, c)
 
     def save(self, name):
+        STORE[name] = self
         raw = b"".join(
             b"\x00" + b"".join(struct.pack("BBBB", *p) for p in row) for row in self.px
         )
@@ -120,6 +124,26 @@ def cut_arches(c, rim):
                     c.set(x, y, CLEAR)
                 elif d <= ARCH_R + 1.2 and rim:
                     c.set(x, y, rim)
+
+
+def add_rust(c, seed, spots=40):
+    """Rust blotches low on the panels and streaks running down from corners."""
+    rng = random.Random(seed)
+    paint = {(*YEL, 255), (*YEL_D, 255), (*YEL_L, 255)}
+
+    def rust_px(x, y, col):
+        if 0 <= x < c.w and 0 <= y + OY < c.h and c.px[y + OY][x] in paint:
+            c.set(x, y, col)
+
+    for _ in range(spots):
+        x = rng.randrange(0, c.w)
+        y = rng.choice([rng.randrange(36, 44), rng.randrange(0, 46)])
+        for _ in range(rng.randint(2, 7)):
+            rust_px(x + rng.randint(-2, 2), y + rng.randint(-1, 1), rng.choice(RUST))
+    for _ in range(spots // 3):  # drip streaks
+        x, y = rng.randrange(0, c.w), rng.randrange(5, 38)
+        for k in range(rng.randint(2, 6)):
+            rust_px(x, y + k, RUST[0] if k < 2 else RUST[2])
 
 
 def window(c, x0, y0, x1, y1, sill):
@@ -189,6 +213,7 @@ def roof():
     c.rect(0, 2, 79, 2, YEL)
     c.rect(0, 3, 79, 3, YEL_D)
     c.set(1, 1, YEL_L)
+    add_rust(c, 11, 18)
     c.save("bus_roof.png")
 
 
@@ -227,6 +252,7 @@ def upper_panel():
     window(c, 74, 7, 77, 16, YEL_D)
     c.rect(0, 18, 79, 19, PINK)  # pink pinstripe
     c.rect(0, 19, 79, 19, PINK_D)
+    add_rust(c, 12, 80)
     c.save("bus_upper.png")
 
 
@@ -264,6 +290,7 @@ def lower_panel():
     c.rect(0, 42, 4, 45, STEEL)
     c.rect(0, 42, 4, 42, STEEL_L)
     cut_arches(c, ARCH)
+    add_rust(c, 13, 110)
     c.save("bus_lower.png")
 
 
@@ -287,6 +314,7 @@ def hood():
     c.rect(78, 42, 99, 42, FENDER_L)
     c.rect(96, 43, 99, 44, CHROME)
     cut_arches(c, ARCH)
+    add_rust(c, 14, 35)
     c.save("bus_hood.png")
 
 
@@ -333,20 +361,27 @@ def wheel():
 
 
 def rocket():
-    """Twin exhausts bolted to the rear bumper, nozzles pointing back (left)."""
-    c = Canvas(14, 14)
-    c.rect(10, 1, 13, 12, STEEL_D)
-    for y in range(1, 13):
-        c.set(11, y, YEL if y % 2 else BLACK)
-    c.set(12, 3, STEEL_L)
-    c.set(12, 10, STEEL_L)
-    for cy in (3, 10):
-        c.rect(4, cy - 1, 9, cy + 1, STEEL)
-        c.rect(4, cy - 1, 9, cy - 1, STEEL_L)
-        c.rect(6, cy - 1, 6, cy + 1, PINK)
-        c.rect(1, cy - 2, 3, cy + 2, STEEL_D)
-        c.rect(1, cy - 2, 3, cy - 2, STEEL)
-        c.rect(0, cy - 1, 1, cy + 1, (90, 40, 30))
+    """Two big boosters bolted to the rear bumper, nozzles pointing back (left). 24x20."""
+    c = Canvas(24, 20)
+    c.rect(19, 1, 23, 18, STEEL_D)  # mounting plate
+    for y in range(1, 19):
+        c.set(21, y, YEL if y % 2 else BLACK)
+    for y in (3, 9, 16):
+        c.set(22, y, STEEL_L)
+    for cy in (5, 14):
+        c.rect(6, cy - 3, 18, cy + 3, STEEL)  # tank
+        c.rect(6, cy - 3, 18, cy - 3, STEEL_L)
+        c.rect(6, cy + 3, 18, cy + 3, STEEL_D)
+        c.rect(10, cy - 3, 11, cy + 3, PINK)  # band
+        c.rect(15, cy - 3, 15, cy + 3, RUST[1])
+        c.rect(1, cy - 4, 5, cy + 4, STEEL_D)  # bell
+        c.rect(1, cy - 4, 5, cy - 4, STEEL)
+        c.rect(0, cy - 3, 1, cy + 3, (110, 50, 30))
+        c.rect(0, cy - 2, 0, cy + 2, (255, 150, 60))  # hot throat
+        c.set(12, cy - 5, STEEL_D)  # fins
+        c.set(13, cy - 5, STEEL_D)
+        c.set(12, cy + 5, STEEL_D)
+        c.set(13, cy + 5, STEEL_D)
     c.save("rocket.png")
 
 
@@ -493,9 +528,57 @@ def light_cone():
     c.save("light_cone.png")
 
 
+def extract(src, x0, y0, x1, y1, pred=None, clear=True, fill=CLEAR):
+    """Move pixels in the body-space rect (inclusive) from src into a new piece."""
+    out = Body()
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            if not (0 <= x < W and 0 <= y + OY < H):
+                continue
+            px = src.px[y + OY][x]
+            if px[3] and (pred is None or pred(px)):
+                out.px[y + OY][x] = px
+                if clear:
+                    src.px[y + OY][x] = fill if len(fill) == 4 else (*fill, 255)
+    return out
+
+
+def split_pieces():
+    frame, upper, lower = STORE["bus_frame.png"], STORE["bus_upper.png"], STORE["bus_lower.png"]
+    hood_c, roof_c = STORE["bus_hood.png"], STORE["bus_roof.png"]
+    seat_cols = {(*SEAT, 255), (*SEAT_L, 255)}
+    extract(frame, 0, 8, 79, 38, lambda p: p in seat_cols, fill=INTERIOR_D).save("bus_seats.png")
+    extract(frame, 80, 26, 99, 39).save("bus_engine.png")
+    extract(frame, 0, -7, 79, 23).save("bus_cage.png")  # upper-deck skeleton
+    frame.save("bus_core.png")  # the rigid inside piece that stays on the chassis
+    glass = Body()
+    for src in (upper, lower):
+        g = extract(src, 0, 0, 99, 45, lambda p: p[3] < 255)
+        for y in range(H):
+            for x in range(W):
+                if g.px[y][x][3]:
+                    glass.px[y][x] = g.px[y][x]
+    glass.save("bus_glass.png")
+    extract(upper, 0, 0, 39, 45).save("bus_upper_r.png")
+    extract(upper, 40, 0, 79, 45).save("bus_upper_f.png")
+    extract(lower, 43, 26, 52, 41).save("bus_door.png")
+    extract(lower, 0, 42, 4, 45).save("bus_bumper_r.png")
+    extract(lower, 0, 22, 42, 45).save("bus_lower_r.png")
+    lower.save("bus_lower_f.png")
+    extract(hood_c, 78, 42, 99, 45).save("bus_bumper_f.png")
+    hood_c.save("bus_hood.png")
+    extract(roof_c, 0, -7, 39, 3).save("bus_roof_r.png")
+    roof_c.save("bus_roof_f.png")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     for fn in (frame, roof, roof_sign, upper_panel, lower_panel, hood, fenders, wheel, rocket,
                flame, passengers, axle, light_radial, light_cone):
         fn()
+    split_pieces()
+    for old in ("bus_frame.png", "bus_upper.png", "bus_lower.png", "bus_roof.png"):
+        path = os.path.join(OUT, old)
+        if os.path.exists(path):
+            os.remove(path)
     print("art written to", os.path.normpath(OUT))

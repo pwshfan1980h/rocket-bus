@@ -183,6 +183,21 @@ def rocket_loop():
     return loopify(drive(x, 1.4), 0.2)
 
 
+def vroom():
+    """Engine revving up hard, then settling: the bus arriving at the start line."""
+    dur = 1.6
+    def f(t):
+        return 40 + 110 * min(1, t / 0.45) - 60 * max(0, (t - 0.6) / 1.0)
+    saw = osc(f, dur, "saw")
+    sub = osc(lambda t: f(t) / 2, dur, "square", 0.5)
+    x = drive(lowpass([a * 0.7 + b * 0.4 for a, b in zip(saw, sub)], lambda t: 500 + 1400 * min(1, t / 0.5)), 2.2)
+    x = env(x, adsr(0.05, 0.3, 0.7, 0.5, dur))
+    rng = random.Random(3)
+    for k in range(5):  # exhaust pops
+        mix(x, env(lowpass(noise(0.04, rng.randint(0, 99)), 1500), decay(0.01)), 0.55 + k * 0.09, 0.5)
+    return x
+
+
 def rocket_ignite():
     dur = 0.6
     n = env(noise(dur, 11), adsr(0.01, 0.2, 0.5, 0.25, dur))
@@ -222,6 +237,38 @@ def land_hard():
 def spring_creak():
     s = osc(lambda t: 820 - 300 * t + 40 * math.sin(t * 90), 0.28, "saw")
     return env(bandpass(s, 600, 2200), adsr(0.02, 0.1, 0.5, 0.1, 0.28))
+
+
+def _creak(seed, base, dur):
+    rng = random.Random(seed)
+    wob = rng.uniform(5, 11)
+    s = osc(lambda t: base * (1 + 0.18 * math.sin(t * wob) + 0.06 * math.sin(t * 57)), dur, "saw")
+    s = bandpass(s, base * 1.5, base * 7)
+    grit = bandpass(noise(dur, seed), 800, 3000)
+    x = [a + g * 0.15 for a, g in zip(s, grit)]
+    return env(x, adsr(0.08, 0.1, 0.7, dur * 0.4, dur))
+
+
+def creak_a():
+    return _creak(301, 140, 0.7)
+
+
+def creak_b():
+    return _creak(302, 95, 0.9)
+
+
+def creak_c():
+    return _creak(303, 210, 0.5)
+
+
+def rattle():
+    x = silence(0.4)
+    rng = random.Random(311)
+    t = 0.0
+    while t < 0.32:
+        mix(x, env(osc(rng.uniform(700, 1600), 0.05), decay(0.012)), t, rng.uniform(0.3, 0.8))
+        t += rng.uniform(0.025, 0.06)
+    return x
 
 
 def clank():
@@ -754,8 +801,8 @@ MUSIC = {
 
 
 SFX = [
-    engine_loop, rocket_loop, rocket_ignite, rocket_sputter, land_soft, land_hard, spring_creak,
-    clank, glass, crash, splash, bubbles, lava_sizzle, fall_whistle, horn, skid, wind_loop,
+    engine_loop, vroom, rocket_loop, rocket_ignite, rocket_sputter, land_soft, land_hard, spring_creak,
+    clank, creak_a, creak_b, creak_c, rattle, glass, crash, splash, bubbles, lava_sizzle, fall_whistle, horn, skid, wind_loop,
     fuel_pickup, fuel_low, voice_blip, voice_happy, voice_hurt, voice_scream, voice_glub, cheer,
     groan, bird_flap, bird_chirp, lizard_scurry, bug_buzz_loop, rustle, amb_desert_loop,
     amb_jungle_loop, amb_mountain_loop, amb_snow_loop, amb_volcano_loop, amb_city_loop,

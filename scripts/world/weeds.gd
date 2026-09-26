@@ -58,7 +58,7 @@ func _draw() -> void:
 		by = bus.chassis.global_position.y
 		bvx = bus.chassis.linear_velocity.x
 	for b in _blades:
-		if absf(b.x - cx) > 260:
+		if absf(b.x - cx) > 380:
 			continue
 		var sway := sin(_time * 2.2 + b.x * 0.13) * 0.35 * _wind + 0.15 * _wind
 		var dx := b.x - bx

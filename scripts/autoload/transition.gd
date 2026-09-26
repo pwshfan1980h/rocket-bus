@@ -23,7 +23,7 @@ func go(scene_path: String, time := 0.35) -> void:
 	tw.tween_property(_rect, "color:a", 1.0, time)
 	await tw.finished
 	get_tree().paused = false
-	Engine.time_scale = 1.0
+	Engine.time_scale = GameState.PACE
 	get_tree().change_scene_to_file(scene_path)
 	await get_tree().process_frame
 	await get_tree().process_frame

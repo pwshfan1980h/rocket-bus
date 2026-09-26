@@ -13,7 +13,7 @@ extends Node2D
 ##   {"t": "finish", "len": 300}                        bus stop + finish line
 
 const SHADER := preload("res://assets/shaders/terrain.gdshader")
-const RUNWAY := 400.0  # road behind the start line
+const RUNWAY := 700.0  # road behind the start line (the bus drives in from here)
 const DEPTH := 700.0
 const LIQUIDS := ["water", "swamp", "ice", "lava"]
 
@@ -84,11 +84,10 @@ func build(segments: Array, biome_name: String) -> Terrain:
 			"finish":
 				finish_x = _x + 90
 				_add_flat(seg.len)
-	_add_flat(500)
+	_add_flat(1600)  # run-out: the bus drives off-screen after the finish
 	end_x = _x
 	_close_island()
 	_add_barrier(-RUNWAY)
-	_add_barrier(end_x - 20)
 	for isl in islands:
 		for p in isl.pts:
 			road_top = minf(road_top, p.y)

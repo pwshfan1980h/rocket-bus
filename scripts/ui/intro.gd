@@ -55,10 +55,10 @@ func _run() -> void:
 	if not await _wait(0.6): return
 	_phase = "go"
 	if not await _until(func(): return bus.airborne and bus.chassis.global_position.x > _lip_x + 50): return
-	Engine.time_scale = 0.3
+	Engine.time_scale = 0.3 * GameState.PACE
 	_title_slam()
 	await get_tree().create_timer(1.4, true, false, true).timeout
-	Engine.time_scale = 1.0
+	Engine.time_scale = GameState.PACE
 
 
 func _physics_process(_delta: float) -> void:
@@ -94,7 +94,7 @@ func _finish() -> void:
 	if _done:
 		return
 	_done = true
-	Engine.time_scale = 1.0
+	Engine.time_scale = GameState.PACE
 	Transition.go("res://scenes/main_menu.tscn", 0.5)
 
 

@@ -2,6 +2,8 @@ extends Node
 ## Progress + settings, saved to user://save.cfg.
 
 const PATH := "user://save.cfg"
+## Global game pace. Slows physics, timers and effects together (1.0 = full speed).
+const PACE := 0.93
 
 var current_level := 0
 var unlocked := 1
@@ -13,6 +15,7 @@ var seen_intro := false
 
 
 func _ready() -> void:
+	Engine.time_scale = PACE
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) == OK:
 		unlocked = cfg.get_value("progress", "unlocked", 1)

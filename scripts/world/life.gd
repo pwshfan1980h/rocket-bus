@@ -12,6 +12,8 @@ const BIRD_COLORS := {
 	"MOUNTAINS": ["#3a3040", "#5a4a50"], "SNOW": ["#e8eef8", "#2a2a34"], "VOLCANO": ["#1a1010"],
 	"BAY CITY": ["#8a8a9a", "#6a6a7a"],
 }
+## Half-size of the area around the camera that's simulated/drawn (fits the widest zoom).
+const VIEW := Vector2(380, 220)
 const DUST_COLORS := {
 	"DESERT": "#e0b888", "JUNGLE": "#6a4a2a", "MOUNTAINS": "#a0a0a8", "SNOW": "#ffffff",
 	"VOLCANO": "#3a3030", "BAY CITY": "#8a8a8a",
@@ -82,7 +84,7 @@ func _ready() -> void:
 		if kind in _kinds:
 			var n: int = {"snow": 140, "ash": 60, "embers": 50, "dust": 40, "fireflies": 24}[kind]
 			for i in n:
-				_flakes.append({"kind": kind, "p": Vector2(_rng.randf_range(-260, 260), _rng.randf_range(-160, 160)),
+				_flakes.append({"kind": kind, "p": Vector2(_rng.randf_range(-VIEW.x, VIEW.x), _rng.randf_range(-VIEW.y, VIEW.y)),
 					"s": _rng.randf_range(0.5, 1.0), "ph": _rng.randf() * TAU})
 	if "butterflies" in _kinds:
 		for i in 6:
@@ -132,7 +134,7 @@ func _update_birds(delta: float, bp: Vector2, bv: Vector2) -> void:
 			_flock_timer = _rng.randf_range(6, 12)
 			_flock_seq += 1
 			var dir := 1.0 if _rng.randf() < 0.5 else -1.0
-			var start := _cam + Vector2(-300 * dir, _rng.randf_range(-120, -70))
+			var start := _cam + Vector2(-(VIEW.x + 40) * dir, _rng.randf_range(-120, -70))
 			for i in _rng.randi_range(5, 10):
 				_add_bird(start + Vector2(_rng.randf_range(-30, 30), _rng.randf_range(-15, 15)), false,
 						_flock_seq, Vector2(dir * 90, 0))
@@ -198,7 +200,7 @@ func _add_swarm(anchor: Vector2) -> void:
 func _update_swarms(delta: float, bp: Vector2) -> void:
 	var nearest := INF
 	for s in _swarms:
-		if absf(s.a.x - _cam.x) > 320:
+		if absf(s.a.x - _cam.x) > VIEW.x + 60:
 			continue
 		for f in s.flies:
 			var acc: Vector2 = (s.a - f.p) * 6.0 + Vector2(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * 500
@@ -218,7 +220,7 @@ func _update_swarms(delta: float, bp: Vector2) -> void:
 func _update_butterflies(delta: float, bp: Vector2) -> void:
 	for b in _butterflies:
 		b.ph += delta
-		if absf(b.p.x - _cam.x) > 300:  # keep a few near the camera
+		if absf(b.p.x - _cam.x) > VIEW.x:  # keep a few near the camera
 			b.p = _cam + Vector2(_rng.randf_range(-220, 220), _rng.randf_range(-60, 30))
 		var acc := Vector2(sin(b.ph * 0.9) * 40, sin(b.ph * 2.3) * 60)
 		if b.p.distance_to(bp) < 90:
@@ -231,7 +233,7 @@ func _update_butterflies(delta: float, bp: Vector2) -> void:
 
 func _update_lizards(delta: float, bp: Vector2) -> void:
 	for l in _lizards:
-		if l.state == "gone" or absf(l.p.x - _cam.x) > 320:
+		if l.state == "gone" or absf(l.p.x - _cam.x) > VIEW.x + 60:
 			continue
 		l.t += delta
 		if l.state == "idle" and l.p.distance_to(bp) < 150:
@@ -256,7 +258,7 @@ func _update_tumbles(delta: float, bp: Vector2, bv: Vector2) -> void:
 	_tumble_timer -= delta
 	if _tumble_timer <= 0.0 and _tumbles.size() < 3:
 		_tumble_timer = _rng.randf_range(2.5, 6.0)
-		var x := _cam.x - 280
+		var x := _cam.x - VIEW.x - 20
 		var gy := terrain.ground_y(x)
 		if not is_nan(gy):
 			var pat := []
@@ -276,7 +278,7 @@ func _update_tumbles(delta: float, bp: Vector2, bv: Vector2) -> void:
 		if t.p.distance_to(bp) < 48 and bv.length() > 40:
 			t.v = bv * 1.1 + Vector2(0, -220)
 			Audio.play_at("rustle", t.p, -4.0)
-	_tumbles = _tumbles.filter(func(t): return t.p.x < _cam.x + 400 and t.p.y < terrain.road_bottom + 400)
+	_tumbles = _tumbles.filter(func(t): return t.p.x < _cam.x + VIEW.x + 80 and t.p.y < terrain.road_bottom + 400)
 
 
 # --- Leaves ---------------------------------------------------------------------
@@ -284,7 +286,7 @@ func _update_tumbles(delta: float, bp: Vector2, bv: Vector2) -> void:
 func _update_leaves(delta: float, bp: Vector2) -> void:
 	var rate := 5.0 if _title == "JUNGLE" else 2.5
 	if _rng.randf() < rate * delta:
-		_spawn_leaf(_cam + Vector2(_rng.randf_range(-260, 260), -150))
+		_spawn_leaf(_cam + Vector2(_rng.randf_range(-VIEW.x, VIEW.x), -VIEW.y))
 	for tree in props.trees:
 		if absf(tree.x - bp.x) < 60 and _time - _tree_cd.get(tree, -99.0) > 3.0:
 			_tree_cd[tree] = _time
@@ -301,7 +303,7 @@ func _update_leaves(delta: float, bp: Vector2) -> void:
 		if not is_nan(gy) and l.p.y > gy - 1:
 			l.p.y = gy - 1
 			l.landed = true
-	_leaves = _leaves.filter(func(l): return l.life > 0.0 and absf(l.p.x - _cam.x) < 400)
+	_leaves = _leaves.filter(func(l): return l.life > 0.0 and absf(l.p.x - _cam.x) < VIEW.x + 80)
 
 
 func _spawn_leaf(at: Vector2) -> void:
@@ -343,8 +345,8 @@ func _update_flakes(delta: float) -> void:
 			"fireflies":
 				f.p += Vector2(sin(f.ph * 0.8) * 14, cos(f.ph * 1.1) * 10) * delta
 		# Particles live in a box around the camera and wrap.
-		f.p.x = fposmod(f.p.x + 260, 520) - 260
-		f.p.y = fposmod(f.p.y + 160, 320) - 160
+		f.p.x = fposmod(f.p.x + VIEW.x, VIEW.x * 2) - VIEW.x
+		f.p.y = fposmod(f.p.y + VIEW.y, VIEW.y * 2) - VIEW.y
 
 
 # --- Drawing ----------------------------------------------------------------------
@@ -354,7 +356,7 @@ func _draw() -> void:
 	for p in _puffs:
 		draw_circle(p.p, p.s, Color(dust, clampf(p.life, 0.0, 0.5)))
 	for b in _birds:
-		if absf(b.p.x - _cam.x) > 280:
+		if absf(b.p.x - _cam.x) > VIEW.x + 20:
 			continue
 		if b.perched:
 			var y: float = b.p.y - (1 if b.hop > 0 else 0)
@@ -367,7 +369,7 @@ func _draw() -> void:
 			draw_line(b.p, b.p + Vector2(4, -flap), b.c, 1.0)
 			draw_rect(Rect2(b.p.x - 1, b.p.y - 1, 2, 2), b.c)
 	for s in _swarms:
-		if absf(s.a.x - _cam.x) > 280:
+		if absf(s.a.x - _cam.x) > VIEW.x + 20:
 			continue
 		for f in s.flies:
 			draw_rect(Rect2(f.p.x, f.p.y, 1, 1), Color("#141010"))
@@ -380,7 +382,7 @@ func _draw() -> void:
 		draw_rect(Rect2(b.p.x, b.p.y - 1, 1, 3), Color("#1a1a1a"))
 	var liz_col: Color = {"DESERT": Color("#b89a50"), "JUNGLE": Color("#50c040"), "VOLCANO": Color("#e0602a")}.get(_title, Color("#8a9a50"))
 	for l in _lizards:
-		if l.state == "gone" or absf(l.p.x - _cam.x) > 280:
+		if l.state == "gone" or absf(l.p.x - _cam.x) > VIEW.x + 20:
 			continue
 		var c := Color(liz_col, l.alpha)
 		var d: float = l.dir

@@ -57,6 +57,7 @@ func build(biome: String, segments: Array) -> World:
 	add_child(fg_layer)
 
 	camera = preload("res://scripts/lab/follow_camera.gd").new()
+	camera.terrain = terrain
 	add_child(camera)
 	return self
 
