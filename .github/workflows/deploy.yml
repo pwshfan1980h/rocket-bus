@@ -55,6 +55,9 @@ jobs:
           ~/godot/godot --headless --path . --export-release "Web" build/web/index.html
           test -f build/web/index.wasm
 
+      - name: Prepare and verify link previews
+        run: python3 tools/prepare_social.py build/web
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
