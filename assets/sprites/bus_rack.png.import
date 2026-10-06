@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bxpvxmm026tnr"
-path="res://.godot/imported/bus_cage.png-9fb2cfdc3fd33be23bc1d96d4177de4a.ctex"
+uid="uid://ctwncrahtpg4p"
+path="res://.godot/imported/bus_rack.png-f410ce332f55a53a3e23e1817f2d84cc.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/bus_cage.png"
-dest_files=["res://.godot/imported/bus_cage.png-9fb2cfdc3fd33be23bc1d96d4177de4a.ctex"]
+source_file="res://assets/sprites/bus_rack.png"
+dest_files=["res://.godot/imported/bus_rack.png-f410ce332f55a53a3e23e1817f2d84cc.ctex"]
 
 [params]
 

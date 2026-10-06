@@ -12,10 +12,11 @@ const DRIVER_SHEET := preload("res://assets/sprites/driver.png")  # profile, fac
 const SWAY_GAIN := 0.004
 const SWAY_LIMIT := Vector2(2.0, 3.0)
 
-# Top-left of each 8x10 rider sprite in bus-local px, plus sprite-sheet row.
+# Top-left of each 8x10 rider sprite in bus-local px, plus sprite-sheet row. One rider per
+# window (see tools/gen_art.py), heads and shoulders above the sill, all facing forward.
 const SEATS := [
-	[Vector2(-34, -15), 0], [Vector2(-6, -15), 3], [Vector2(8, -15), 1], [Vector2(22, -15), 4],
-	[Vector2(-22, 5), 2], [Vector2(14, 5), 3], [Vector2(28, 5), 5],  # last = driver
+	[Vector2(-36, -5), 0], [Vector2(-23, -5), 2], [Vector2(-10, -5), 1], [Vector2(15, -5), 3],
+	[Vector2(28, -5), 5],  # last = driver
 ]
 const SHIRTS := [
 	Color("#28c8b4"), Color("#b060ff"), Color("#ff9030"),

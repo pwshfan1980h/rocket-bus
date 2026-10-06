@@ -1,6 +1,6 @@
 # Rocket Bus
 
-Launch a double-decker bus off ramps, fire the rocket to clear the gap, land it level.
+Launch a rugged rocket-powered school bus off ramps, fire the rocket to clear the gap, land it level.
 
 **Play:** https://pwshfan1980h.github.io/rocket-bus/
 

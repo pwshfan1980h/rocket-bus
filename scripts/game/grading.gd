@@ -1,7 +1,7 @@
 class_name Grading
 ## Turns a finished run into Speed stars, Technique stars and an overall grade.
 ##   Speed      0-3: time vs. par
-##   Technique  0-3: landing quality, style (flips, big air, close calls), minus retries
+##   Technique  0-3: landing quality, style (flips - front flips count double -, big air, close calls), minus retries
 ##   Grade      SS S A B C D E F FF from speed + technique + bonuses.
 ## A comet exit (leaving the level soaring) adds a big bonus and never grades below C.
 
@@ -31,7 +31,7 @@ static func technique_stars(landings: Array, retries: int, style: Dictionary) ->
 	for l in landings:
 		q += LANDING_VALUE.get(l, 0.0)
 	q = q / maxf(1.0, landings.size())
-	q += 0.08 * style.get("flips", 0) + 0.06 * style.get("close", 0) + (0.1 if style.get("air", 0.0) > 2.0 else 0.0)
+	q += 0.08 * (style.get("flips", 0) + style.get("front", 0)) + 0.06 * style.get("close", 0) + (0.1 if style.get("air", 0.0) > 2.0 else 0.0)
 	q -= 0.2 * retries
 	if q >= 0.85:
 		return 3
@@ -43,7 +43,7 @@ static func technique_stars(landings: Array, retries: int, style: Dictionary) ->
 
 
 static func style_bonus(style: Dictionary) -> float:
-	return clampf(0.25 * style.get("flips", 0) + 0.2 * style.get("close", 0) + (0.3 if style.get("air", 0.0) > 2.0 else 0.0), 0.0, 1.0)
+	return clampf(0.25 * (style.get("flips", 0) + style.get("front", 0)) + 0.2 * style.get("close", 0) + (0.3 if style.get("air", 0.0) > 2.0 else 0.0), 0.0, 1.0)
 
 
 static func grade(speed: int, technique: int, bonus: float, comet: bool, retries: int) -> String:

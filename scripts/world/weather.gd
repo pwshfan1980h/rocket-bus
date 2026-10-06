@@ -8,10 +8,13 @@ const SIZE := Vector2(480, 270)
 
 var kind := ""
 var terrain: Terrain
+var bus: Bus  ## optional: rain splashes off its roof too
 var tint: CanvasModulate  ## the world's night tint; lightning flashes it
 var headwind := 0.0
 var _drops: Array[Vector4] = []  # x, y, speed, length/size
-var _splashes: Array[Vector3] = []  # world x, world y, age
+var _splashes: Array[Vector3] = []  # world x, world y, age: a ripple on the road
+var _droplets: Array[Vector4] = []  # world pos, velocity: the crown thrown up by each splash
+var _splash_acc := 0.0
 var _time := 0.0
 var _flash := 0.0
 var _bolt: PackedVector2Array
@@ -43,6 +46,8 @@ func _ready() -> void:
 	if tint:
 		if kind == "rain":
 			tint.color = tint.color.darkened(0.2)
+	if kind == "rain" and terrain:
+		terrain.set_wet(true)
 		_base_tint = tint.color
 
 
@@ -74,19 +79,41 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+## Drops hitting the road (and the bus roof): a short ripple plus a few droplets
+## thrown up in a crown that fall back down. A handful at a time, not a carpet.
 func _rain_splashes(delta: float) -> void:
 	var cam := get_viewport().get_camera_2d()
 	if cam == null or terrain == null:
 		return
 	var c := cam.get_screen_center_position()
-	for i in 4:
-		var x := c.x + randf_range(-300, 300)
+	var half := SIZE.x * 0.5 / cam.zoom.x
+	_splash_acc += delta * 34.0
+	while _splash_acc >= 1.0:
+		_splash_acc -= 1.0
+		var x := c.x + randf_range(-half, half)
 		var y := terrain.surface_y(x)
-		if not is_nan(y):
-			_splashes.append(Vector3(x, y, 0.0))
+		if is_instance_valid(bus) and bus.chassis and not bus.is_crashed and randf() < 0.18:
+			var roof := bus.chassis.to_global(Vector2(randf_range(-36, 36), Bus.ROOF_Y))
+			_splash_at(roof, false)
+		elif not is_nan(y):
+			_splash_at(Vector2(x, y), true)
 	for i in _splashes.size():
 		_splashes[i].z += delta
-	_splashes = _splashes.filter(func(s): return s.z < 0.25)
+	_splashes = _splashes.filter(func(s): return s.z < 0.22)
+	for i in _droplets.size():
+		var d := _droplets[i]
+		d.w += 420.0 * delta
+		d.x += d.z * delta
+		d.y += d.w * delta
+		_droplets[i] = d
+	_droplets = _droplets.filter(func(d): return d.w < 70.0)
+
+
+func _splash_at(p: Vector2, ripple: bool) -> void:
+	if ripple:
+		_splashes.append(Vector3(p.x, p.y, 0.0))
+	for k in randi_range(2, 3):
+		_droplets.append(Vector4(p.x, p.y - 1, randf_range(-28, 28), randf_range(-75, -40)))
 
 
 func _lightning(delta: float) -> void:
@@ -111,11 +138,16 @@ func _draw() -> void:
 			for d in _drops:
 				draw_line(Vector2(d.x, d.y), Vector2(d.x + 3 * d.z, d.y - 12 * d.w), Color(0.7, 0.8, 1.0, 0.35 * d.z), 1.0)
 			var xf := get_viewport().get_canvas_transform()
-			for s in _splashes:
-				var p := xf * Vector2(s.x, s.y)
-				var r := 1.0 + s.z * 14.0
-				draw_line(p + Vector2(-r, -1), p + Vector2(-r * 0.4, -3), Color(0.8, 0.9, 1, 0.6 - s.z * 2), 1.0)
-				draw_line(p + Vector2(r, -1), p + Vector2(r * 0.4, -3), Color(0.8, 0.9, 1, 0.6 - s.z * 2), 1.0)
+			var zoom := xf.get_scale().x
+			for s in _splashes:  # flat ripple that widens and fades
+				var p := (xf * Vector2(s.x, s.y)).round()
+				var r := roundf((1.0 + s.z * 16.0) * zoom)
+				var a := 0.5 * (1.0 - s.z / 0.22)
+				draw_rect(Rect2(p.x - r, p.y - 1, 2, 1), Color(0.8, 0.9, 1, a))
+				draw_rect(Rect2(p.x + r - 1, p.y - 1, 2, 1), Color(0.8, 0.9, 1, a))
+			for d in _droplets:
+				var p := (xf * Vector2(d.x, d.y)).round()
+				draw_rect(Rect2(p, Vector2.ONE), Color(0.82, 0.9, 1.0, 0.75))
 			if _flash > 0.6 and _bolt.size() > 1:
 				draw_polyline(_bolt, Color(1, 1, 1, _flash), 2.0)
 			if _flash > 0.0:

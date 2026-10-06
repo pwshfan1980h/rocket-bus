@@ -5,7 +5,7 @@ Run from the project root:  python3 tools/gen_art.py
 
 Every breakable bus piece is drawn on the same 80x53 canvas so the pieces
 line up when stacked, and can be spawned as debris using the same transform.
-Body coordinates: x 0..79 cabin (rear -> front), x 80..99 hood, y 0..45 (roof -> skirt).
+Body coordinates: x 0..79 cabin (rear -> front), x 80..99 hood, y 0..45 (rack -> skirt).
 The canvas has OY rows of headroom above the roof for the roof sign.
 """
 import math
@@ -33,7 +33,7 @@ PINK = (240, 48, 140)
 PINK_D = (160, 24, 96)
 TEAL = (40, 214, 200)
 TEAL_D = (20, 140, 150)
-GLASS = (40, 110, 130, 96)
+GLASS = (150, 200, 230, 56)
 GLARE = (200, 250, 255, 170)
 SKIRT = (58, 52, 70)
 SKIRT_D = (36, 32, 46)
@@ -56,9 +56,6 @@ BOLT = (70, 70, 84)
 BLACK = (14, 12, 18)
 ARCH = (30, 20, 16)
 
-LOWER_WINDOWS = [(4, 13), (16, 27), (30, 41), (54, 61)]
-LOWER_WIN_Y = (27, 33)
-UPPER_WINDOWS = [(4, 15), (18, 29), (32, 43), (46, 57), (60, 71)]
 WHEEL_CX = (18, 74)
 ARCH_R = 10.5
 FENDER = (30, 28, 38)
@@ -156,34 +153,45 @@ def window(c, x0, y0, x1, y1, sill):
 
 
 # --- Pieces -----------------------------------------------------------------
+# A single-deck, go-anywhere school bus: roof rack with luggage, snorkel, bull bar.
+#   y  1..11  roof rack + luggage + sign     y 12..14  roof
+#   y 16..28  window band (glass 17..27)     y 29..41  pinstripe, checker, panels
+#   y 42..45  skirt / bash plate             x 80..98  hood, snorkel, bull bar
+
+ROOF_Y = 12
+WIN_Y = (17, 27)
+WINDOWS = [(2, 12), (15, 25), (28, 38), (53, 63)]  # passenger windows
+DRIVER_WIN = (66, 77)
+DOOR = (41, 50)
+PILLARS = (0, 13, 26, 39, 51, 64, 78)
+RIDER_X = (4, 17, 30, 55)  # left edge of each 8px rider sprite (body px)
+LEATHER = (130, 76, 40)
+LEATHER_D = (90, 50, 28)
+DUFFEL = (60, 90, 170)
+DUFFEL_D = (36, 56, 120)
+JERRY = (200, 40, 40)
+JERRY_D = (130, 24, 30)
+
 
 def frame():
-    """The skeleton: interior, pillars, floors, chassis rail. Seen through the
+    """The skeleton: interior, pillars, floor, chassis rail. Seen through the
     windows, and fully exposed once the shell is ripped off."""
     c = Body()
-    c.rect(1, 2, 78, 43, INTERIOR)
-    c.rect(1, 2, 78, 3, INTERIOR_D)
-    c.rect(1, 25, 78, 26, INTERIOR_D)
-    for x in range(8, 76, 14):  # ceiling lamps
-        c.set(x, 4, LAMP)
-        c.set(x + 1, 4, LAMP)
-        c.set(x, 27, LAMP)
-        c.set(x + 1, 27, LAMP)
-    for sx in (6, 20, 34, 48, 62):  # upper deck seat backs
-        c.rect(sx, 11, sx + 1, 17, SEAT)
-        c.set(sx, 11, SEAT_L)
-    for sx in (6, 19, 33, 56):  # lower deck seat backs
-        c.rect(sx, 30, sx + 1, 37, SEAT)
-        c.set(sx, 30, SEAT_L)
-    c.rect(2, 0, 77, 0, STEEL_D)  # roof rail
-    c.rect(0, 1, 79, 1, STEEL_D)
-    c.rect(0, 20, 79, 24, STEEL_D)  # upper floor beam
-    c.rect(0, 20, 79, 20, STEEL)
-    for px in (0, 16, 30, 44, 58, 72):  # pillars
-        c.rect(px, 1, px + 1, 43, STEEL)
-        c.rect(px + 1, 1, px + 1, 43, STEEL_D)
-    c.rect(78, 1, 79, 43, STEEL)
-    bays = (0, 16, 30, 44, 58, 72, 78)
+    c.rect(1, ROOF_Y + 1, 78, 43, INTERIOR)
+    c.rect(1, ROOF_Y + 1, 78, ROOF_Y + 3, INTERIOR_D)  # ceiling
+    for x in range(8, 76, 13):  # ceiling lamps
+        c.set(x, 16, LAMP)
+        c.set(x + 1, 16, LAMP)
+    for rx in RIDER_X:  # high seat backs, right behind each (forward-facing) rider
+        c.rect(rx - 2, 20, rx - 1, 30, SEAT)
+        c.rect(rx - 2, 20, rx - 1, 20, SEAT_L)
+        c.rect(rx - 2, 29, rx + 6, 30, SEAT)  # seat cushion
+    c.rect(1, 31, 78, 32, INTERIOR_D)  # floor
+    c.rect(2, ROOF_Y, 77, ROOF_Y, STEEL_D)  # roof rail
+    for px in PILLARS:
+        c.rect(px, ROOF_Y, px + 1, 43, STEEL)
+        c.rect(px + 1, ROOF_Y, px + 1, 43, STEEL_D)
+    bays = PILLARS + (80,)
     for a, b in zip(bays, bays[1:]):  # cross braces in the skirt
         span = b - a - 2
         for i in range(span):
@@ -208,13 +216,47 @@ def frame():
 
 def roof():
     c = Body()
-    c.rect(3, 0, 76, 0, YEL_L)
-    c.rect(1, 1, 78, 1, YEL)
-    c.rect(0, 2, 79, 2, YEL)
-    c.rect(0, 3, 79, 3, YEL_D)
-    c.set(1, 1, YEL_L)
+    y = ROOF_Y
+    c.rect(3, y, 76, y, YEL_L)
+    c.rect(1, y + 1, 78, y + 1, YEL)
+    c.rect(0, y + 2, 79, y + 2, YEL_D)
+    c.set(1, y + 1, YEL_L)
+    for x in range(4, 77, 5):  # roof rivets
+        c.set(x, y + 1, YEL_D)
     add_rust(c, 11, 18)
     c.save("bus_roof.png")
+
+
+def rack():
+    """Roof rack loaded for a long trip: suitcases, duffel, spare tire, jerry can, lamps."""
+    c = Body()
+    c.rect(3, 9, 77, 9, STEEL_D)  # rail
+    c.rect(3, 8, 77, 8, STEEL)
+    for x in range(4, 78, 9):  # posts down to the roof
+        c.rect(x, 10, x, 11, STEEL_D)
+    # rear: two suitcases and a duffel
+    c.rect(4, 3, 12, 7, LEATHER)
+    c.rect(4, 3, 12, 3, (170, 104, 60))
+    c.rect(7, 2, 9, 2, LEATHER_D)  # handle
+    c.rect(4, 5, 12, 5, LEATHER_D)  # strap
+    c.rect(13, 5, 21, 7, DUFFEL)
+    c.rect(14, 4, 20, 4, DUFFEL)
+    c.rect(13, 7, 21, 7, DUFFEL_D)
+    c.set(17, 3, DUFFEL_D)
+    # front: spare tire lying flat, jerry can, roof lamps
+    c.rect(56, 5, 66, 7, TIRE)
+    c.rect(57, 4, 65, 4, TIRE)
+    c.rect(58, 5, 64, 5, TIRE_L)
+    c.rect(68, 3, 72, 7, JERRY)
+    c.rect(68, 3, 72, 3, (240, 90, 80))
+    c.rect(68, 7, 72, 7, JERRY_D)
+    c.set(71, 2, JERRY_D)
+    c.set(70, 5, JERRY_D)
+    for lx in (74, 77):
+        c.rect(lx - 1, 5, lx, 7, STEEL_D)
+        c.set(lx, 6, LAMP)
+    add_rust(c, 15, 8)
+    c.save("bus_rack.png")
 
 
 GLYPHS = {
@@ -228,70 +270,66 @@ GLYPHS = {
 
 
 def roof_sign():
-    """Taxi-style lit sign on the roof. Flies off on a crash."""
+    """Taxi-style lit sign strapped to the rack. Flies off on a crash."""
     c = Body()
-    c.rect(26, -7, 53, -1, PINK)
-    c.rect(27, -6, 52, -2, BLACK)
-    c.rect(26, -7, 53, -7, (255, 120, 190))
+    c.rect(26, 1, 53, 7, PINK)
+    c.rect(27, 2, 52, 6, BLACK)
+    c.rect(26, 1, 53, 1, (255, 120, 190))
     for i, ch in enumerate("ROCKET"):
         for gy, row in enumerate(GLYPHS[ch]):
             for gx, bit in enumerate(row):
                 if bit == "1":
-                    c.set(28 + i * 4 + gx, -6 + gy, YEL)
+                    c.set(28 + i * 4 + gx, 2 + gy, YEL)
     c.save("bus_sign.png")
 
 
-def upper_panel():
+def side_panel():
+    """The whole side skin in one canvas; split_pieces() cuts it into breakable panels."""
     c = Body()
-    c.rect(0, 4, 79, 21, YEL)
-    c.rect(0, 4, 79, 4, YEL_L)
-    c.rect(0, 21, 79, 21, YEL_D)
-    c.rect(79, 5, 79, 20, YEL_D)
-    for x0, x1 in UPPER_WINDOWS:
-        window(c, x0, 7, x1, 16, YEL_D)
-    window(c, 74, 7, 77, 16, YEL_D)
-    c.rect(0, 18, 79, 19, PINK)  # pink pinstripe
-    c.rect(0, 19, 79, 19, PINK_D)
-    add_rust(c, 12, 80)
-    c.save("bus_upper.png")
-
-
-def lower_panel():
-    c = Body()
+    c.rect(0, 15, 79, 41, YEL)
+    c.rect(0, 15, 79, 15, YEL_L)
+    c.rect(79, 15, 79, 41, YEL_D)  # cab front edge (the hood takes over from here)
+    for x0, x1 in WINDOWS:
+        window(c, x0, WIN_Y[0], x1, WIN_Y[1], YEL_D)
+    window(c, DRIVER_WIN[0], WIN_Y[0], DRIVER_WIN[1], WIN_Y[1], YEL_D)
+    c.rect(0, 29, 79, 29, PINK)  # pink pinstripe under the sills
+    c.rect(0, 30, 79, 30, PINK_D)
     for x in range(80):  # taxi checker band
         top = (x // 2) % 2 == 0
-        c.set(x, 22, CHK_B if top else CHK_W)
-        c.set(x, 23, CHK_W if top else CHK_B)
-    c.rect(0, 24, 79, 24, YEL_D)
-    c.rect(0, 25, 79, 41, YEL)
-    c.rect(0, 25, 79, 25, YEL_L)
-    c.rect(0, 42, 79, 45, SKIRT)
-    c.rect(0, 45, 79, 45, SKIRT_D)
-    for x0, x1 in LOWER_WINDOWS:
-        window(c, x0, LOWER_WIN_Y[0], x1, LOWER_WIN_Y[1], YEL_D)
-    window(c, 66, 27, 77, 33, YEL_D)  # driver's side window
-    # door
-    c.rect(43, 26, 52, 41, YEL_D)
-    c.rect(44, 27, 51, 41, GLASS)
-    c.rect(47, 27, 48, 41, STEEL_D)
-    c.set(45, 28, GLARE)
-    c.set(50, 28, GLARE)
-    c.rect(79, 25, 79, 41, YEL_D)  # cab front edge (the hood takes over from here)
-    # teal speed stripe with a slanted nose
-    for x in range(2, 60):
-        c.set(x, 37, TEAL)
-        c.set(x, 38, TEAL_D)
+        c.set(x, 31, CHK_B if top else CHK_W)
+        c.set(x, 32, CHK_W if top else CHK_B)
+    c.rect(0, 33, 79, 33, YEL_D)
+    for px in PILLARS[1:-1]:  # panel seams
+        c.rect(px, 34, px, 41, YEL_D)
+    for x in range(2, 78, 4):  # rivet line
+        c.set(x, 35, YEL_D)
+    for x in range(2, 60):  # teal speed stripe with a slanted nose
+        c.set(x, 38, TEAL)
+        c.set(x, 39, TEAL_D)
     for i in range(3):
-        c.set(60 + i, 37 - i, TEAL)
-        c.set(60 + i, 38 - i, TEAL_D)
-    # lights + bumpers
-    c.rect(0, 36, 1, 40, TAIL)
-    c.set(0, 41, AMBER)
+        c.set(60 + i, 38 - i, TEAL)
+        c.set(60 + i, 39 - i, TEAL_D)
+    c.rect(0, 42, 79, 45, SKIRT)  # skirt with a bolted bash plate
+    c.rect(0, 45, 79, 45, SKIRT_D)
+    c.rect(0, 43, 79, 43, STEEL_D)
+    for x in range(3, 78, 7):
+        c.set(x, 43, STEEL_L)
+    # door: tall, glazed, split down the middle
+    d0, d1 = DOOR
+    c.rect(d0, 16, d1, 41, YEL_D)
+    c.rect(d0 + 1, 17, d1 - 1, 41, GLASS)
+    c.rect(d0 + 4, 17, d0 + 5, 41, STEEL_D)
+    c.set(d0 + 2, 18, GLARE)
+    c.set(d1 - 2, 18, GLARE)
+    c.rect(d0 + 1, 34, d1 - 1, 34, STEEL_D)  # kick plate rail
+    # tail light, reflector, rear bumper
+    c.rect(0, 34, 1, 38, TAIL)
+    c.set(0, 39, AMBER)
     c.rect(0, 42, 4, 45, STEEL)
     c.rect(0, 42, 4, 42, STEEL_L)
     cut_arches(c, ARCH)
-    add_rust(c, 13, 110)
-    c.save("bus_lower.png")
+    add_rust(c, 13, 70)
+    c.save("bus_side.png")
 
 
 def hood_bottom(x):
@@ -316,19 +354,30 @@ def hood():
     c.rect(91, 31, 93, 33, HEADLIGHT)
     c.set(91, 31, CHROME)
     c.set(93, 35, AMBER)
+    # snorkel: intake up the front corner of the cab, for river crossings
+    c.rect(80, 13, 81, 27, STEEL_D)
+    c.rect(80, 13, 80, 27, STEEL)
+    c.rect(80, 11, 84, 13, STEEL_D)
+    c.rect(81, 11, 84, 11, STEEL)
+    c.set(84, 12, BLACK)
     cut_arches(c, ARCH)
     add_rust(c, 14, 35)
     c.save("bus_hood.png")
 
 
 def front_bumper():
-    """Black bumper following the angled underside of the nose."""
+    """Tubular bull bar bolted over the nose, following its angled underside."""
     c = Body()
     for x in range(78, 97):
         b = hood_bottom(min(x, 95))
         c.rect(x, b + 1, x, b + 3, BLACK)
         c.set(x, b + 1, FENDER_L)
-    c.rect(94, hood_bottom(95) - 1, 96, hood_bottom(95) + 1, CHROME)
+    c.rect(96, 27, 97, hood_bottom(95) + 2, FENDER)  # upright
+    c.rect(96, 27, 96, hood_bottom(95) + 2, FENDER_L)
+    for y in (28, 33):  # cross tubes
+        c.rect(92, y, 97, y + 1, FENDER)
+        c.rect(92, y, 97, y, FENDER_L)
+    c.rect(94, hood_bottom(95) - 1, 97, hood_bottom(95) + 1, CHROME)
     c.save("bus_bumper_f.png")
 
 
@@ -429,7 +478,8 @@ def flame():
 
 
 def passengers():
-    """Sheet: columns = mood (idle, cheer, shock), rows = rider variant. 8x10."""
+    """Sheet: columns = mood (idle, cheer, shock), rows = rider variant. 8x10.
+    Riders sit facing forward (right, the way the bus goes), seen in profile."""
     riders = [
         # skin, hair, shirt, style
         ((240, 200, 160), (110, 60, 30), (40, 200, 180), "short"),
@@ -437,9 +487,9 @@ def passengers():
         ((130, 84, 56), (24, 20, 24), (255, 130, 40), "afro"),
         ((250, 214, 180), (250, 210, 90), (240, 70, 150), "bun"),
         ((170, 110, 80), (200, 200, 210), (90, 190, 70), "short"),
-        ((220, 170, 130), (20, 30, 60), (30, 60, 150), "cap"),  # driver
+        ((220, 170, 130), (20, 30, 60), (30, 60, 150), "cap"),  # driver (ragdoll head)
     ]
-    eye, mouth = (24, 18, 30), (140, 40, 50)
+    eye, mouth, white = (24, 18, 30), (140, 40, 50), (255, 255, 255)
     c = Canvas(24, 60)
     for row, (skin, hair, shirt, style) in enumerate(riders):
         for mood in range(3):
@@ -448,63 +498,66 @@ def passengers():
             def p(x, y, col):
                 c.set(ox + x, oy + y, col)
 
-            for y in range(2, 7):
-                for x in range(1, 7):
+            for y in range(2, 7):  # head: back of the head left, face right
+                for x in range(1, 6):
                     p(x, y, skin)
-            for x in range(1, 7):
+            p(6, 4, skin)  # nose
+            for x in range(1, 6):
                 p(x, 1, hair)
-            p(1, 2, hair)
+            for y in range(2, 5):  # hair over the back of the head
+                p(1, y, hair)
+            p(2, 2, hair)
             if style == "long":
-                for y in range(2, 7):
+                for y in range(2, 8):
+                    p(0, y, hair)
                     p(1, y, hair)
-                    p(6, y, hair)
             elif style == "afro":
-                for x in range(0, 8):
+                for x in range(0, 7):
                     p(x, 0, hair)
                     p(x, 1, hair)
-                p(0, 2, hair)
-                p(7, 2, hair)
+                for y in range(2, 5):
+                    p(0, y, hair)
+                p(2, 3, hair)
             elif style == "bun":
-                p(3, 0, hair)
-                p(4, 0, hair)
+                p(0, 1, hair)
+                p(0, 2, hair)
+                p(1, 0, hair)
             elif style == "cap":
-                for x in range(1, 7):
+                for x in range(1, 6):
                     p(x, 0, hair)
-                p(6, 1, hair)
+                p(6, 1, hair)  # brim
                 p(7, 1, hair)
-                p(4, 0, (250, 200, 40))
-            if mood == 2 and style != "cap":  # hair stands up
+                p(3, 0, (250, 200, 40))
+            if mood == 2 and style not in ("cap", "afro"):  # hair stands up
                 p(2, 0, hair)
-                p(5, 0, hair)
-            for x in range(0, 8):  # shoulders
+                p(4, 0, hair)
+            for x in range(0, 7):  # shoulders / torso
                 for y in range(7, 10):
                     p(x, y, shirt)
-            p(3, 7, skin)
+            p(3, 7, skin)  # neck
             p(4, 7, skin)
             if mood == 0:
-                p(2, 3, eye)
-                p(5, 3, eye)
-                p(3, 5, mouth)
+                p(4, 3, eye)
+                p(5, 5, mouth)
+            elif mood == 1:  # big grin, fist pumped
+                p(4, 3, eye)
                 p(4, 5, mouth)
-            elif mood == 1:
-                p(2, 3, eye)
-                p(5, 3, eye)
-                for x in (2, 3, 4, 5):
-                    p(x, 5, mouth)
-                p(3, 6, (255, 255, 255))
-                p(4, 6, mouth)
-                for y in range(2, 7):  # arms up
-                    p(0, y, skin)
+                p(5, 5, mouth)
+                p(5, 6, white)
+                for y in range(1, 7):
                     p(7, y, skin)
-                p(0, 7, shirt)
                 p(7, 7, shirt)
-            else:
-                for x in (2, 5):
-                    p(x, 3, (255, 255, 255))
-                    p(x, 4, eye)
-                for x in (3, 4):
-                    p(x, 5, eye)
-                    p(x, 6, eye)
+                p(6, 8, shirt)
+            else:  # wide eye, gaping mouth, hands up
+                p(4, 3, white)
+                p(5, 3, eye)
+                p(5, 5, eye)
+                p(5, 6, eye)
+                p(6, 6, mouth)
+                p(7, 2, skin)
+                p(7, 3, skin)
+                p(6, 8, shirt)
+                p(7, 4, shirt)
     c.save("passengers.png")
 
 
@@ -613,39 +666,31 @@ def extract(src, x0, y0, x1, y1, pred=None, clear=True, fill=CLEAR):
 
 
 def split_pieces():
-    frame, upper, lower = STORE["bus_frame.png"], STORE["bus_upper.png"], STORE["bus_lower.png"]
+    frame, side = STORE["bus_frame.png"], STORE["bus_side.png"]
     hood_c, roof_c = STORE["bus_hood.png"], STORE["bus_roof.png"]
     seat_cols = {(*SEAT, 255), (*SEAT_L, 255)}
-    extract(frame, 0, 8, 79, 38, lambda p: p in seat_cols, fill=INTERIOR_D).save("bus_seats.png")
+    extract(frame, 0, 18, 79, 31, lambda p: p in seat_cols, fill=INTERIOR_D).save("bus_seats.png")
     extract(frame, 80, 26, 99, 39).save("bus_engine.png")
-    extract(frame, 0, -7, 79, 23).save("bus_cage.png")  # upper-deck skeleton
     frame.save("bus_core.png")  # the rigid inside piece that stays on the chassis
-    glass = Body()
-    for src in (upper, lower):
-        g = extract(src, 0, 0, 99, 45, lambda p: p[3] < 255)
-        for y in range(H):
-            for x in range(W):
-                if g.px[y][x][3]:
-                    glass.px[y][x] = g.px[y][x]
-    glass.save("bus_glass.png")
-    extract(upper, 0, 0, 39, 45).save("bus_upper_r.png")
-    extract(upper, 40, 0, 79, 45).save("bus_upper_f.png")
-    extract(lower, 43, 26, 52, 41).save("bus_door.png")
-    extract(lower, 0, 42, 4, 45).save("bus_bumper_r.png")
-    extract(lower, 0, 22, 42, 45).save("bus_lower_r.png")
-    lower.save("bus_lower_f.png")
+    extract(side, 0, 0, 99, 45, lambda p: p[3] < 255).save("bus_glass.png")
+    extract(side, DOOR[0], 16, DOOR[1], 41).save("bus_door.png")
+    extract(side, 0, 42, 4, 45).save("bus_bumper_r.png")
+    extract(side, 0, 15, DOOR[0] - 1, 30).save("bus_upper_r.png")
+    extract(side, DOOR[1] + 1, 15, 79, 30).save("bus_upper_f.png")
+    extract(side, 0, 31, DOOR[0] - 1, 45).save("bus_lower_r.png")
+    side.save("bus_lower_f.png")
     hood_c.save("bus_hood.png")
-    extract(roof_c, 0, -7, 39, 3).save("bus_roof_r.png")
+    extract(roof_c, 0, ROOF_Y, 39, ROOF_Y + 2).save("bus_roof_r.png")
     roof_c.save("bus_roof_f.png")
 
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for fn in (frame, roof, roof_sign, upper_panel, lower_panel, hood, front_bumper, fenders, wheel, rocket,
+    for fn in (frame, roof, rack, roof_sign, side_panel, hood, front_bumper, fenders, wheel, rocket,
                flame, passengers, driver, axle, light_radial, light_cone):
         fn()
     split_pieces()
-    for old in ("bus_frame.png", "bus_upper.png", "bus_lower.png", "bus_roof.png"):
+    for old in ("bus_frame.png", "bus_side.png", "bus_roof.png"):  # intermediates
         path = os.path.join(OUT, old)
         if os.path.exists(path):
             os.remove(path)

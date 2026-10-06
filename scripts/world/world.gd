@@ -85,6 +85,8 @@ func spawn_bus(at := Vector2.INF, fuel := 100.0, vel := Vector2.ZERO) -> Bus:
 	move_child(bus, life.get_index())
 	weeds.bus = bus
 	life.bus = bus
+	if weather:
+		weather.bus = bus
 	camera.target = bus.chassis
 	camera.snap()
 	return bus
@@ -96,6 +98,7 @@ func set_weather(kind: String) -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 3
 	weather = Weather.new().setup(kind, terrain, tint)
+	weather.bus = bus
 	layer.add_child(weather)
 	add_child(layer)
 

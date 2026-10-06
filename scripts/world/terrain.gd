@@ -16,6 +16,8 @@ extends Node2D
 ##   {"t": "finish", "len": 300}                        bus stop + finish line
 
 const SHADER := preload("res://assets/shaders/terrain.gdshader")
+const SURFACE_SHADER := preload("res://assets/shaders/road_surface.gdshader")
+const SURFACE_DEPTH := 18.0  ## road + roadbed band drawn over the soil
 const RUNWAY := 700.0  # road behind the start line (the bus drives in from here)
 const DEPTH := 2600.0  ## ground goes far down so falling never shows sky under the level
 const LIQUIDS := ["water", "swamp", "ice", "lava"]
@@ -40,6 +42,7 @@ var _cur: PackedVector2Array
 var _cur_ramps: Array = []
 var _time := 0.0
 var _barriers: Array[Vector2] = []
+var _surface_mat: ShaderMaterial
 
 
 func build(segments: Array, biome_name: String) -> Terrain:
@@ -127,6 +130,11 @@ func _add_barrier(x: float) -> void:
 	_barriers.append(Vector2(x, y))
 
 
+## Rain: the road goes dark and glossy, with puddles that shimmer.
+func set_wet(on: bool) -> void:
+	_surface_mat.set_shader_parameter("wet", on)
+
+
 ## Road height at x (the island's collision surface), or NAN over a gap.
 func surface_y(x: float) -> float:
 	for isl in islands:
@@ -209,6 +217,8 @@ func _build_nodes() -> void:
 	for i in 4:
 		mat.set_shader_parameter("c%d" % i, Color(g.body[i % g.body.size()]))
 	mat.set_shader_parameter("depth_start", road_bottom + 40.0)
+	var surface_mat := _surface_material(g.surface)
+	_surface_mat = surface_mat
 	var phys := PhysicsMaterial.new()
 	phys.friction = biome.friction
 	for isl in islands:
@@ -233,13 +243,10 @@ func _build_nodes() -> void:
 			push_warning("terrain body triangulation failed: island %d..%d, %d pts" % [isl.x0, isl.x1, poly.size()])
 		body.material = mat
 		add_child(body)
-		add_child(_strip(ground, 8.0, 11.0, Color(g.shoulder)))
-		add_child(_strip(ground, 0.0, 8.0, Color(g.road)))
-		var edge := Line2D.new()
-		edge.points = ground
-		edge.width = 1.0
-		edge.default_color = Color(g.edge)
-		add_child(edge)
+		var surface := MeshInstance2D.new()
+		surface.mesh = _surface_mesh(ground)
+		surface.material = surface_mat
+		add_child(surface)
 		add_child(_collision(isl, bottom, phys))
 	var overlay := Node2D.new()
 	overlay.name = "Overlay"
@@ -259,16 +266,39 @@ func _ground_line(isl: Dictionary) -> PackedVector2Array:
 	return out
 
 
-func _strip(line: PackedVector2Array, top: float, bottom: float, color: Color) -> Polygon2D:
-	var poly := PackedVector2Array()
-	for p in line:
-		poly.append(p + Vector2(0, top))
-	for i in range(line.size() - 1, -1, -1):
-		poly.append(line[i] + Vector2(0, bottom))
-	var p2 := Polygon2D.new()
-	p2.polygon = poly
-	p2.color = color
-	return p2
+## A band hugging the ground line, UV = (world x, depth below the surface), for road_surface.gdshader.
+func _surface_mesh(line: PackedVector2Array) -> ArrayMesh:
+	var verts := PackedVector2Array()
+	var uvs := PackedVector2Array()
+	for i in line.size() - 1:
+		var a := line[i]
+		var b := line[i + 1]
+		var down := Vector2(0, SURFACE_DEPTH)
+		verts.append_array([a, b, b + down, a, b + down, a + down])
+		for depth in [0.0, 0.0, SURFACE_DEPTH, 0.0, SURFACE_DEPTH, SURFACE_DEPTH]:
+			uvs.append(Vector2(0, depth))
+		for k in range(verts.size() - 6, verts.size()):
+			uvs[k].x = verts[k].x
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+func _surface_material(spec: Dictionary) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = SURFACE_SHADER
+	mat.set_shader_parameter("style", spec.style)
+	for key in ["top", "road", "road_d", "fleck", "bed", "bed_d"]:
+		mat.set_shader_parameter(key, Color(spec[key]))
+	mat.set_shader_parameter("glow", Color(spec.get("glow", "#00000000")))
+	mat.set_shader_parameter("road_depth", float(spec.road_depth))
+	mat.set_shader_parameter("bed_depth", float(spec.bed_depth))
+	mat.set_shader_parameter("curb", spec.get("curb", false))
+	return mat
 
 
 func _collision(isl: Dictionary, bottom: float, phys: PhysicsMaterial) -> StaticBody2D:

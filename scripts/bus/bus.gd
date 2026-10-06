@@ -1,11 +1,11 @@
 class_name Bus
 extends Node2D
-## The Rocket Bus: a double-decker built from rigid bodies and joints.
+## The Rocket Bus: a rugged single-deck school bus built from rigid bodies and joints.
 ##
 ##   Chassis (RigidBody2D) --GrooveJoint2D + DampedSpringJoint2D--> Wheel x2
 ##
-## The rigid core frame (lower deck floor, rail, pillars) is the chassis itself.
-## Everything else - upper-deck cage, seats, engine, panels, door, hood, bumpers,
+## The rigid core frame (floor, rail, pillars) is the chassis itself.
+## Everything else - roof rack, seats, engine, panels, door, hood, bull bar,
 ## fenders, sign, rocket - is a sprite on the chassis until a crash; then each is
 ## swapped for a loose debris body, the glass shatters, the joints are cut and the
 ## passengers are thrown out, leaving just the core.
@@ -23,30 +23,32 @@ const TEX_FLAME := preload("res://assets/sprites/flame.png")
 const TEX_AXLE := preload("res://assets/sprites/axle.png")
 const TEX_RADIAL := preload("res://assets/sprites/light_radial.png")
 const TEX_CONE := preload("res://assets/sprites/light_cone.png")
-# Breakable pieces: name, texture, rect in body px (x 0..79 cabin, 80..99 hood; y 0..45 roof->skirt), mass.
+# Breakable pieces: name, texture, rect in body px (x 0..79 cabin, 80..99 hood; y 0..45 rack->skirt), mass.
+# Layout (see tools/gen_art.py): rack 1..11, roof 12..14, windows 17..27, panels 29..41, skirt 42..45.
 const INTERIOR := [  # drawn behind the passengers
-	["cage", preload("res://assets/sprites/bus_cage.png"), Rect2(0, 0, 80, 24), 0.3],
-	["seats", preload("res://assets/sprites/bus_seats.png"), Rect2(4, 10, 74, 28), 0.15],
+	["seats", preload("res://assets/sprites/bus_seats.png"), Rect2(2, 20, 62, 11), 0.15],
 	["engine", preload("res://assets/sprites/bus_engine.png"), Rect2(81, 28, 16, 12), 0.35],
 ]
 const SHELL := [  # drawn over the passengers
-	["upper_r", preload("res://assets/sprites/bus_upper_r.png"), Rect2(0, 4, 40, 18), 0.15],
-	["upper_f", preload("res://assets/sprites/bus_upper_f.png"), Rect2(40, 4, 40, 18), 0.15],
-	["lower_r", preload("res://assets/sprites/bus_lower_r.png"), Rect2(0, 22, 43, 20), 0.18],
-	["door", preload("res://assets/sprites/bus_door.png"), Rect2(43, 26, 10, 16), 0.06],
-	["lower_f", preload("res://assets/sprites/bus_lower_f.png"), Rect2(53, 22, 27, 20), 0.12],
-	["hood", preload("res://assets/sprites/bus_hood.png"), Rect2(80, 26, 16, 16), 0.15],
-	["bumper_f", preload("res://assets/sprites/bus_bumper_f.png"), Rect2(78, 36, 19, 10), 0.08],
+	["upper_r", preload("res://assets/sprites/bus_upper_r.png"), Rect2(0, 15, 41, 16), 0.15],
+	["upper_f", preload("res://assets/sprites/bus_upper_f.png"), Rect2(51, 15, 29, 16), 0.12],
+	["lower_r", preload("res://assets/sprites/bus_lower_r.png"), Rect2(0, 31, 41, 11), 0.18],
+	["door", preload("res://assets/sprites/bus_door.png"), Rect2(41, 16, 10, 26), 0.08],
+	["lower_f", preload("res://assets/sprites/bus_lower_f.png"), Rect2(51, 31, 29, 11), 0.12],
+	["hood", preload("res://assets/sprites/bus_hood.png"), Rect2(80, 11, 16, 31), 0.17],
+	["bumper_f", preload("res://assets/sprites/bus_bumper_f.png"), Rect2(78, 27, 20, 19), 0.12],
 	["bumper_r", preload("res://assets/sprites/bus_bumper_r.png"), Rect2(0, 42, 5, 4), 0.03],
 	["fender_rear", preload("res://assets/sprites/bus_fender_rear.png"), Rect2(4, 34, 29, 12), 0.06],
 	["fender_front", preload("res://assets/sprites/bus_fender_front.png"), Rect2(60, 34, 29, 12), 0.06],
-	["roof_r", preload("res://assets/sprites/bus_roof_r.png"), Rect2(0, 0, 40, 4), 0.08],
-	["roof_f", preload("res://assets/sprites/bus_roof_f.png"), Rect2(40, 0, 40, 4), 0.08],
-	["sign", preload("res://assets/sprites/bus_sign.png"), Rect2(26, -7, 28, 7), 0.05],
+	["roof_r", preload("res://assets/sprites/bus_roof_r.png"), Rect2(0, 12, 40, 3), 0.08],
+	["roof_f", preload("res://assets/sprites/bus_roof_f.png"), Rect2(40, 12, 40, 3), 0.08],
+	["rack", preload("res://assets/sprites/bus_rack.png"), Rect2(3, 2, 75, 10), 0.25],
+	["sign", preload("res://assets/sprites/bus_sign.png"), Rect2(26, 1, 28, 7), 0.05],
 ]
 # Window rects (body px) the glass shatters from.
 const WINDOWS: Array[Rect2] = [
-	Rect2(4, 7, 68, 10), Rect2(74, 7, 4, 10), Rect2(4, 27, 38, 7), Rect2(44, 27, 8, 15), Rect2(54, 27, 24, 7),
+	Rect2(2, 17, 11, 11), Rect2(15, 17, 11, 11), Rect2(28, 17, 11, 11), Rect2(42, 17, 8, 25),
+	Rect2(53, 17, 11, 11), Rect2(66, 17, 12, 11),
 ]
 
 const BODY_ORIGIN := Vector2(-40, -23)  # body px (0,0) in chassis space
@@ -60,6 +62,7 @@ const ROCKET_POS := Vector2(-64, 1)  # top-left of the 24x20 booster sprite
 const ROCKET_SIZE := Vector2(24, 20)
 const NOZZLES: Array[Vector2] = [Vector2(-64, 6.5), Vector2(-64, 15.5)]
 const FLAME_SCALE := 1.7
+const ROOF_Y := -11.0  ## top of the roof in chassis space (rain splashes off it)
 const LAYER_WORLD := 1
 const LAYER_BUS := 2
 const LAYER_DEBRIS := 4
@@ -190,7 +193,7 @@ func _build_chassis() -> void:
 	chassis.angular_velocity = _spawn_spin
 	var poly := CollisionPolygon2D.new()
 	poly.polygon = PackedVector2Array([
-		Vector2(-40, -21), Vector2(-38, -23), Vector2(38, -23), Vector2(40, -21),
+		Vector2(-40, -12), Vector2(-38, -14), Vector2(38, -14), Vector2(40, -12),  # roof + rack
 		# Snubbed nose with an angled underside (~45 deg up from the front wheel) so the
 		# bus rides onto ramps instead of digging its front corner in.
 		Vector2(40, 4), Vector2(52, 7), Vector2(56, 9), Vector2(56, 13), Vector2(46, 18), Vector2(-40, 18),
@@ -372,12 +375,12 @@ func _build_lights() -> void:
 	chassis.add_child(_headlight)
 	chassis.add_child(_light(TEX_RADIAL, Vector2(55, 10), Color(1, 0.95, 0.8), 1.0, 0.3))
 	chassis.add_child(_light(TEX_RADIAL, Vector2(-40, 15), Color(1, 0.15, 0.1), 0.9, 0.4))
-	for y in [-11.0, 9.0]:
-		var cabin := _light(TEX_RADIAL, Vector2(0, y), Color(1, 0.82, 0.55), 1.3, 1.7)
+	for x in [-20.0, 16.0]:
+		var cabin := _light(TEX_RADIAL, Vector2(x, -2), Color(1, 0.82, 0.55), 1.3, 1.5)
 		cabin.range_item_cull_mask = 2  # only the interior + riders
 		chassis.add_child(cabin)
 		_cabin_lights.append(cabin)
-	_sign_light = _light(TEX_RADIAL, Vector2(0, -26), Color(1, 0.3, 0.7), 0.9, 0.9)
+	_sign_light = _light(TEX_RADIAL, Vector2(0, -19), Color(1, 0.3, 0.7), 0.9, 0.9)
 	chassis.add_child(_sign_light)
 
 

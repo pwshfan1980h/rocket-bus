@@ -61,7 +61,7 @@ func _play() -> void:
 		["TIME", "%.1fs" % data.time],
 		["PAR", "%ds" % int(data.par)],
 		["LANDINGS", "%dP %dG %dH" % [data.landings.count("perfect"), data.landings.count("good"), data.landings.count("hard")]],
-		["FLIPS", str(data.style.flips)],
+		["FLIPS", str(data.style.flips) + (" (%d FRONT)" % data.style.front if data.style.get("front", 0) > 0 else "")],
 		["CLOSE CALLS", str(data.style.close)],
 		["BEST AIR", "%.1fs" % data.style.air],
 		["FUEL LEFT", "%d%%" % data.fuel_pct],

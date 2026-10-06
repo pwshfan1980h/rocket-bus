@@ -11,6 +11,8 @@ const FAIL_TEXT := {
 	"lava": "TOASTED!", "crash": "WRECKED!",
 }
 const POINTS := {"perfect": 1000, "good": 500, "hard": 150}
+const FRONT_FLIP_POINTS := 2000  ## per front flip stuck (+half again for a perfect landing)
+const BACKFLIP_POINTS := 750
 
 var index := 0
 var def: Dictionary
@@ -40,12 +42,14 @@ static var bot_retries := 0
 
 var _resume := {}  # checkpoint we're restarting from (empty = fresh start)
 var _retries := 0  # checkpoint retries used on this run
-var _style := {"flips": 0, "close": 0, "air": 0.0}
+var _style := {"flips": 0, "close": 0, "air": 0.0, "front": 0}
 var _air_now := 0.0
 var _spin_acc := 0.0
+var _jump_flips := {"front": 0, "back": 0}  ## flips in the current jump, cashed in on landing
 var _comet := false
 var _speed_lines: Control
 var _cp_passed := -INF
+var _flip_points := 0  ## bonus banked from flips that were landed
 
 
 func _ready() -> void:
@@ -83,7 +87,8 @@ func _ready() -> void:
 		clock = _resume.clock
 		landings.assign(_resume.landings)
 		cleared = _resume.cleared
-		_style = _resume.get("style", _style).duplicate()
+		_style.merge(_resume.get("style", {}), true)
+		_flip_points = _resume.get("flip_points", 0)
 		_retries = _resume.get("retries", 0) + 1
 		GameState.checkpoint.retries = _retries
 	world.set_weather(def.get("weather", ""))
@@ -236,9 +241,14 @@ func _track_style(delta: float) -> void:
 		_air_now += delta
 		_spin_acc += c.angular_velocity * delta
 		if absf(_spin_acc) >= TAU * 0.92:
+			# Clockwise = nose over the front = a front flip (the hard, scary one).
+			var front := _spin_acc > 0.0
 			_spin_acc -= signf(_spin_acc) * TAU
 			_style.flips += 1
-			Fx.float_text(c.global_position + Vector2(0, -60), "FLIP!", Color.WHITE, 16, true)
+			_jump_flips["front" if front else "back"] += 1
+			var n: int = _jump_flips.front + _jump_flips.back
+			Fx.float_text(c.global_position + Vector2(0, -60), ("FRONT FLIP!" if front else "BACKFLIP!")
+					+ (" x%d" % n if n > 1 else ""), Color.WHITE, 16, true)
 			Audio.play("jingle_good", -4.0)
 			bus.passengers.driver_say(["WOOHOO!", "DID YOU SEE THAT?!", "I MEANT TO DO THAT!"].pick_random(), true)
 	elif _air_now > 0.0:
@@ -247,12 +257,14 @@ func _track_style(delta: float) -> void:
 		_style.air = maxf(_style.air, _air_now)
 		_air_now = 0.0
 		_spin_acc = 0.0
+		_jump_flips = {"front": 0, "back": 0}
 
 
 func _reach_checkpoint(cx: float) -> void:
 	_cp_passed = cx
 	GameState.checkpoint = {"level": index, "x": cx, "fuel": bus.fuel, "clock": clock,
-		"landings": landings.duplicate(), "cleared": cleared, "retries": _retries, "style": _style.duplicate()}
+		"landings": landings.duplicate(), "cleared": cleared, "retries": _retries, "style": _style.duplicate(),
+		"flip_points": _flip_points}
 	Audio.play("star", -4.0)
 	Fx.float_text(bus.chassis.global_position + Vector2(0, -60), "CHECKPOINT!", Color("#3cf0dc"), 16)
 	bus.passengers.driver_say(["HALFWAY THERE!", "KEEP IT TOGETHER!", "STILL IN ONE PIECE!"].pick_random())
@@ -262,6 +274,7 @@ func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 	if state != State.PLAY:
 		return
 	landings.append(grade)
+	_cash_flips(grade)
 	var x := bus.chassis.global_position.x
 	var now_cleared := 0
 	for g in world.terrain.gaps:
@@ -278,6 +291,32 @@ func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 		if index == 0 and _hint_step < 4:
 			_hint_step = 4
 			_hint("NICE!  NOW GET TO THE BUS STOP")
+
+
+## Landed in one piece after flipping: front flips get the full fanfare.
+func _cash_flips(grade: String) -> void:
+	var front: int = _jump_flips.front
+	var back: int = _jump_flips.back
+	_jump_flips = {"front": 0, "back": 0}
+	if front > 0:
+		_style.front = _style.get("front", 0) + front
+		var points := FRONT_FLIP_POINTS * front + (FRONT_FLIP_POINTS / 2 if grade == "perfect" else 0)
+		_flip_points += points
+		var party := Fanfare.new()
+		party.hud = _hud.layer
+		party.bus = bus
+		party.camera = world.camera
+		world.add_child(party)
+		party.play(front, grade == "perfect", points)
+	elif back > 0:
+		_flip_points += BACKFLIP_POINTS * back
+		Fx.float_text(bus.chassis.global_position + Vector2(0, -78), "BACKFLIP LANDED! +%d" % (BACKFLIP_POINTS * back),
+				Color("#3cf0dc"), 8, false, 1.6)
+		Audio.play("cha_ching", -8.0)
+
+
+func _exit_tree() -> void:
+	Fanfare.restore_time()  # never leave the game stuck in slow motion
 
 
 func _on_birds(count: int) -> void:
@@ -369,7 +408,7 @@ func _finish_report(comet: bool) -> Dictionary:
 	for g in landings:
 		score += POINTS.get(g, 0)
 	score += int(bus.fuel * 10) + maxi(0, int((par - clock) * 50))
-	score += _style.flips * 750 + _style.close * 400 + int(_style.air * 100) + (2500 if comet else 0)
+	score += _flip_points + _style.close * 400 + int(_style.air * 100) + (2500 if comet else 0)
 	return {
 		"code": Levels.code(index), "title": def.title, "time": clock, "par": par, "landings": landings.duplicate(),
 		"style": _style.duplicate(), "fuel_pct": int(bus.fuel / bus.fuel_capacity * 100), "retries": _retries,
