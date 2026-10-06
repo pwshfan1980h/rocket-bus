@@ -18,6 +18,7 @@ var bus: Bus
 var backdrop: Backdrop
 var weather: Weather
 var tint: CanvasModulate
+var shadow: BusShadow
 
 
 func build(biome: String, segments: Array) -> World:
@@ -38,6 +39,9 @@ func build(biome: String, segments: Array) -> World:
 	add_child(props)
 	weeds = Weeds.new().setup(terrain)
 	add_child(weeds)
+	shadow = BusShadow.new()
+	shadow.terrain = terrain
+	add_child(shadow)
 	for p in terrain.pickups:
 		var can := FuelCan.new()
 		can.position = p
@@ -85,6 +89,9 @@ func spawn_bus(at := Vector2.INF, fuel := 100.0, vel := Vector2.ZERO) -> Bus:
 	move_child(bus, life.get_index())
 	weeds.bus = bus
 	life.bus = bus
+	shadow.bus = bus
+	bus.impact_style = {"jungle": "mud", "mountain": "gravel", "snow": "snow", "volcano": "sparks",
+			"moon": "moondust", "border": "spores"}.get(Biomes.base_name(biome_name), "dust")
 	if weather:
 		weather.bus = bus
 	camera.target = bus.chassis

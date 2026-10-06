@@ -9,6 +9,9 @@ extends Node2D
 ##   {"t": "slope", "len": 300, "dy": -60}              ease up/down
 ##   {"t": "landing", "len": 360, "dy": 110}            downhill landing: steepest at the start, levels out
 ##   {"t": "ramp", "len": 150, "rise": 50}              must be followed by a gap
+##   {"t": "kicker", "len": 90, "rise": 20}             little ramp on the road (no gap): free airtime
+##   {"t": "stop", "len": 240, "dy": -60, "board": 2, "drop": 1, "name": "MAIN ST"}
+##                                                      bus stop on a straight grade (stop inside to board / drop)
 ##   {"t": "gap", "len": 240, "dy": 0, "kind": "chasm"} kind: chasm|water|swamp|ice|lava
 ##   {"t": "fuel"}                                      fuel can at this spot
 ##   {"t": "mud", "len": 200} / {"t": "ice", "len": 200}  flat road with a mud / ice patch
@@ -29,6 +32,7 @@ var ramps: Array[Dictionary] = []
 var pickups: Array[Vector2] = []
 var zones: Array[Dictionary] = []  # {"x0", "x1", "kind": "mud"|"ice"}
 var checkpoints: Array[float] = []
+var stops: Array[Dictionary] = []  # {"x0", "x1", "board", "drop", "name", "done"}
 var signs: Array[Vector2] = []
 var finish_x := 0.0
 var end_x := 0.0
@@ -75,6 +79,14 @@ func build(segments: Array, biome_name: String) -> Terrain:
 				ramps.append(r)
 				_cur_ramps.append(r)
 				signs.append(Vector2(x0 - 150, base))
+			"kicker":
+				var base := _y
+				var x0 := _x
+				_add_curve(seg.len, func(t): return base - seg.rise * ramp_profile(t))
+				var r := {"x0": x0, "x1": x0 + seg.len, "lip_x": _x, "top_y": _y, "base_y": base, "kicker": true}
+				ramps.append(r)
+				_cur_ramps.append(r)
+				_add_point(_x + 3, base)  # straight back down to the road behind the lip
 			"gap":
 				if _cur_ramps.is_empty() or _cur_ramps[-1].lip_x != _x:
 					signs.append(Vector2(_x - 150, _y))  # a drop-off (no ramp) still gets a warning sign
@@ -98,6 +110,14 @@ func build(segments: Array, biome_name: String) -> Terrain:
 				pickups.append(Vector2(_x, _y - 30))
 			"checkpoint":
 				checkpoints.append(_x)
+			"stop":
+				var y0 := _y
+				var x0 := _x
+				var dy: float = seg.get("dy", 0.0)
+				_add_curve(seg.len, func(t): return y0 + dy * t)
+				_road_y = _y
+				stops.append({"x0": x0, "x1": _x, "board": seg.get("board", 0), "drop": seg.get("drop", 0),
+					"name": seg.get("name", "BUS STOP"), "done": false})
 			"mud", "ice":
 				zones.append({"x0": _x, "x1": _x + seg.len, "kind": seg.t})
 				_add_flat(seg.len)

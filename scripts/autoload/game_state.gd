@@ -16,6 +16,19 @@ var gore_on := true
 var seen_intro := false
 ## Last checkpoint reached this session: {level, x, fuel, clock, landings, cleared}.
 var checkpoint := {}
+## The story run in progress (roguelike: memory only, never saved). Empty = none.
+##   {"at": leg id, "path": [leg ids cleared], "lives", "score", "walked", "lost_cargo", "over": "" | "won" | "dead"}
+var story := {}
+var story_mode := false  ## the level scene is playing a story leg (not an arcade level)
+
+
+func new_story() -> void:
+	story = {"at": Story.FIRST, "path": [], "lives": Story.LIVES, "score": 0, "walked": 0, "lost_cargo": 0, "over": ""}
+	checkpoint = {}
+
+
+func in_story() -> bool:
+	return not story.is_empty() and story.over == ""
 
 
 func _ready() -> void:

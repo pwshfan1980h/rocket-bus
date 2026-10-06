@@ -187,6 +187,7 @@ def frame():
         c.rect(rx - 2, 20, rx - 1, 20, SEAT_L)
         c.rect(rx - 2, 29, rx + 6, 30, SEAT)  # seat cushion
     c.rect(1, 31, 78, 32, INTERIOR_D)  # floor
+    c.rect(DOOR[0] + 6, ROOF_Y + 3, DOOR[0] + 6, ROOF_Y + 5, STEEL_D)  # grab strap by the door
     c.rect(2, ROOF_Y, 77, ROOF_Y, STEEL_D)  # roof rail
     for px in PILLARS:
         c.rect(px, ROOF_Y, px + 1, 43, STEEL)
@@ -318,7 +319,7 @@ def side_panel():
     d0, d1 = DOOR
     c.rect(d0, 16, d1, 41, YEL_D)
     c.rect(d0 + 1, 17, d1 - 1, 41, GLASS)
-    c.rect(d0 + 4, 17, d0 + 5, 41, STEEL_D)
+    c.rect(d0 + 4, 35, d0 + 5, 41, STEEL_D)  # split below the kick plate (the standee shows above)
     c.set(d0 + 2, 18, GLARE)
     c.set(d1 - 2, 18, GLARE)
     c.rect(d0 + 1, 34, d1 - 1, 34, STEEL_D)  # kick plate rail
@@ -614,6 +615,94 @@ def driver():
     c.save("driver.png")
 
 
+def standee():
+    """A rider standing in the doorway, hanging on to a ceiling strap. 3 frames of 8x22:
+    idle, cheer (both arms up), shock. Facing forward (right) like everyone else."""
+    skin, hair, shirt, pants = (210, 160, 120), (60, 40, 30), (40, 200, 180), (58, 58, 90)
+    eye, mouth, shoe = (24, 18, 30), (140, 40, 50), (30, 26, 34)
+    c = Canvas(24, 22)
+    for f in range(3):
+        ox = f * 8
+
+        def p(x, y, col):
+            c.set(ox + x, y, col)
+
+        for y in range(3, 8):  # head
+            for x in range(1, 6):
+                p(x, y, skin)
+        p(6, 5, skin)
+        for x in range(1, 6):
+            p(x, 2, hair)
+        for y in range(3, 5):
+            p(1, y, hair)
+        if f == 2:
+            p(2, 1, hair)
+            p(4, 1, hair)
+            p(4, 4, (255, 255, 255))
+            p(5, 4, eye)
+            p(5, 6, eye)
+        else:
+            p(4, 4, eye)
+            p(5, 6, mouth)
+            if f == 1:
+                p(4, 6, mouth)
+        for y in range(8, 15):  # torso
+            for x in range(1, 6):
+                p(x, y, shirt)
+        for y in range(0, 9):  # arm up to the strap
+            p(5 if f != 1 else 6, y, skin if y < 3 else shirt)
+        if f == 1:
+            for y in range(0, 9):
+                p(1, y, skin if y < 3 else shirt)
+        for y in range(15, 21):  # legs
+            p(2, y, pants)
+            p(4, y, pants)
+            p(3, y, pants if y < 17 else CLEAR)
+        p(2, 21, shoe)
+        p(3, 21, shoe)
+        p(4, 21, shoe)
+        p(5, 21, shoe)
+    c.save("standee.png")
+
+
+def dog():
+    """A dog with its head out of the rear window: 3 frames of 12x9, ears blown
+    further back the faster the bus goes. Faces right."""
+    fur, fur_d, nose, tongue, eye = (200, 150, 90), (150, 100, 56), (30, 24, 28), (240, 100, 120), (20, 16, 20)
+    c = Canvas(36, 9)
+    for f in range(3):
+        ox = f * 12
+
+        def p(x, y, col):
+            c.set(ox + x, y, col)
+
+        for y in range(2, 7):  # head
+            for x in range(3, 9):
+                p(x, y, fur)
+        for x in range(8, 11):  # snout
+            p(x, 4, fur)
+            p(x, 5, fur)
+        p(11, 4, nose)
+        p(6, 3, eye)
+        p(9, 6, tongue)
+        p(9, 7, tongue)
+        for x in range(3, 8):  # collar
+            p(x, 7, (220, 40, 60))
+        if f == 0:  # ears hanging
+            for y in range(2, 6):
+                p(2, y, fur_d)
+            p(3, 6, fur_d)
+        elif f == 1:  # ears lifting
+            for x in range(0, 3):
+                p(x, 2 + x // 2, fur_d)
+            p(1, 3, fur_d)
+        else:  # ears streaming back
+            for x in range(0, 4):
+                p(x, 2, fur_d)
+                p(x, 1, fur_d)
+    c.save("dog.png")
+
+
 def axle():
     c = Canvas(12, 3)
     c.rect(0, 0, 11, 2, STEEL_D)
@@ -687,7 +776,7 @@ def split_pieces():
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     for fn in (frame, roof, rack, roof_sign, side_panel, hood, front_bumper, fenders, wheel, rocket,
-               flame, passengers, driver, axle, light_radial, light_cone):
+               flame, passengers, driver, standee, dog, axle, light_radial, light_cone):
         fn()
     split_pieces()
     for old in ("bus_frame.png", "bus_side.png", "bus_roof.png"):  # intermediates

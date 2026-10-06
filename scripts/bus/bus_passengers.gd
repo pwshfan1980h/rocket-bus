@@ -9,15 +9,19 @@ enum Mood { IDLE, CHEER, SHOCK }
 
 const SHEET := preload("res://assets/sprites/passengers.png")
 const DRIVER_SHEET := preload("res://assets/sprites/driver.png")  # profile, facing the road
+const STANDEE_SHEET := preload("res://assets/sprites/standee.png")  # standing in the doorway
 const SWAY_GAIN := 0.004
 const SWAY_LIMIT := Vector2(2.0, 3.0)
 
 # Top-left of each 8x10 rider sprite in bus-local px, plus sprite-sheet row. One rider per
 # window (see tools/gen_art.py), heads and shoulders above the sill, all facing forward.
+# The rear window belongs to the dog (see Bus); row 0 stands in the doorway on a strap.
 const SEATS := [
-	[Vector2(-36, -5), 0], [Vector2(-23, -5), 2], [Vector2(-10, -5), 1], [Vector2(15, -5), 3],
+	[Vector2(-23, -5), 2], [Vector2(-10, -5), 1], [Vector2(15, -5), 3],
+	[Vector2(2, -6), 0],  # standee
 	[Vector2(28, -5), 5],  # last = driver
 ]
+const STANDEE_ROW := 0
 const SHIRTS := [
 	Color("#28c8b4"), Color("#b060ff"), Color("#ff9030"),
 	Color("#ff60b0"), Color("#70e060"), Color("#60a0ff"),
@@ -60,9 +64,10 @@ func _ready() -> void:
 	for seat in SEATS:
 		var s := Sprite2D.new()
 		var is_driver: bool = seat[1] == DRIVER_ROW
-		s.texture = DRIVER_SHEET if is_driver else SHEET
+		var standing: bool = seat[1] == STANDEE_ROW
+		s.texture = DRIVER_SHEET if is_driver else STANDEE_SHEET if standing else SHEET
 		s.hframes = 3
-		s.vframes = 1 if is_driver else 6
+		s.vframes = 1 if is_driver or standing else 6
 		s.centered = false
 		s.position = seat[0] + (Vector2(-2, -1) if is_driver else Vector2.ZERO)
 		s.light_mask = 3  # lit by the world and by the cabin lights
@@ -70,7 +75,9 @@ func _ready() -> void:
 		riders.append({
 			"sprite": s, "base": s.position, "row": seat[1],
 			"offset": Vector2.ZERO, "vel": Vector2.ZERO,
-			"stiff": randf_range(160.0, 240.0), "mood_time": 0.0,
+			# Standing on a strap: swings further and slower than the seated riders.
+			"stiff": 70.0 if standing else randf_range(160.0, 240.0), "mood_time": 0.0,
+			"bonks": 0, "aboard": true,
 		})
 		_set_mood(riders[-1], Mood.IDLE)
 		if seat[1] == DRIVER_ROW:
@@ -146,6 +153,8 @@ func chatter(line: String, voice := "voice_blip") -> void:
 func eject(into: Node, bus_velocity: Vector2) -> void:
 	var delay := 0.0
 	for r in riders:
+		if not r.aboard:
+			continue
 		var s: Sprite2D = r.sprite
 		var at := s.global_position + Vector2(4, 5).rotated(s.global_rotation)
 		var launch := bus_velocity * 0.6 + Vector2(randf_range(-160, 160), randf_range(-360, -180))
@@ -163,7 +172,7 @@ func eject(into: Node, bus_velocity: Vector2) -> void:
 
 
 func _set_mood(r: Dictionary, mood: Mood, duration := 0.0) -> void:
-	r.sprite.frame = mood if r.row == DRIVER_ROW else r.row * 3 + mood
+	r.sprite.frame = mood if r.row in [DRIVER_ROW, STANDEE_ROW] else r.row * 3 + mood
 	r.mood_time = duration
 
 
@@ -198,7 +207,58 @@ func event(kind: String) -> void:
 
 
 func _riders_only() -> Array[Dictionary]:
-	return riders.filter(func(r): return r != driver)
+	return riders.filter(func(r): return r != driver and r.aboard)
+
+
+## Riders on board (not counting the driver).
+func aboard_count() -> int:
+	return _riders_only().size()
+
+
+func seat_count() -> int:
+	return riders.size() - 1
+
+
+## Shows or hides a rider (boarding / getting off).
+func set_aboard(r: Dictionary, on: bool) -> void:
+	r.aboard = on
+	r.sprite.visible = on
+	r.bonks = 0
+
+
+## Fills up to n empty seats; returns the riders who got on.
+func board(n: int) -> Array[Dictionary]:
+	var got: Array[Dictionary] = []
+	for r in riders:
+		if got.size() < n and r != driver and not r.aboard:
+			set_aboard(r, true)
+			_set_mood(r, Mood.CHEER, 1.0)
+			r.vel.y -= 80.0
+			got.append(r)
+	return got
+
+
+## Up to n riders get off; returns them (their sprites are hidden).
+func drop(n: int) -> Array[Dictionary]:
+	var pool := _riders_only()
+	var out: Array[Dictionary] = []
+	for i in mini(n, pool.size()):
+		out.append(pool[i])
+		set_aboard(pool[i], false)
+	return out
+
+
+## A hard landing whacks one rider's head on the window frame. Returns them.
+func bonk_someone() -> Dictionary:
+	var pool := _riders_only()
+	if pool.is_empty():
+		return {}
+	var r: Dictionary = pool.pick_random()
+	r.bonks += 1
+	_set_mood(r, Mood.SHOCK, 1.5)
+	r.vel.y -= 200.0
+	_quip(r, ["BONK!", "MY HEAD!", "OW OW OW!"][mini(r.bonks - 1, 2)] if r.bonks < 3 else "THAT'S IT, I'M WALKING!", "hard")
+	return r
 
 
 func _later(t: float, fn: Callable) -> void:

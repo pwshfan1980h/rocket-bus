@@ -20,7 +20,7 @@ const ALL := {
 		"ground": {"line": "#ffd03c", "body": ["#3e2238", "#46283e", "#3a1e34"],
 			"surface": {"style": 0, "top": "#8a82a0", "road": "#3a3448", "road_d": "#2a2436", "fleck": "#5a5470",
 				"bed": "#968496", "bed_d": "#6a5a6e", "road_depth": 7, "bed_depth": 4, "curb": true}},
-		"decor": ["streetlight", "palm", "hydrant"], "fg": "",
+		"decor": ["streetlight", "palm", "hydrant"], "fg": "lamppost",
 		"life": ["birds", "perched", "dust"],
 		"music": "music_menu", "ambience": "amb_city_loop", "friction": 1.0,
 		"chatter": ["NICE VIEW!", "IS THIS MY STOP?", "SMELLS LIKE TACOS"],
@@ -117,7 +117,7 @@ const ALL := {
 		"ground": {"line": "#ff8a2a", "body": ["#3a2a2e", "#2a1e22", "#4a2a26", "#221a1e"],
 			"surface": {"style": 4, "top": "#6a5254", "road": "#2a2226", "road_d": "#18121a", "fleck": "#4a3a3c",
 				"bed": "#3a2424", "bed_d": "#2a1818", "glow": "#ff6a2a", "road_depth": 6, "bed_depth": 4}},
-		"decor": ["rock", "rock", "deadtree", "skull", "post"], "fg": "",
+		"decor": ["rock", "rock", "deadtree", "skull", "post"], "fg": "spire",
 		"life": ["birds", "perched", "lizards", "embers", "ash", "bats", "vultures"],
 		"music": "music_volcano", "ambience": "amb_volcano_loop", "friction": 1.0,
 		"chatter": ["IS THAT LAVA?!", "IT'S GETTING HOT IN HERE", "I SMELL SMOKE", "WHY IS THE SKY RED?",
@@ -137,7 +137,7 @@ const ALL := {
 		"ground": {"line": "", "body": ["#8a8a94", "#7a7a86", "#9a9aa4", "#6a6a76"],
 			"surface": {"style": 3, "top": "#d0d0dc", "road": "#9c9ca8", "road_d": "#7a7a88", "fleck": "#bcbcc8",
 				"bed": "#7e7e8a", "bed_d": "#6a6a76", "road_depth": 5, "bed_depth": 3}},
-		"decor": ["moonrock", "moonrock", "flag", "lander", "dish"], "fg": "",
+		"decor": ["moonrock", "moonrock", "flag", "lander", "dish"], "fg": "boulder",
 		"life": ["dust"], "gravity": 0.4,
 		"music": "music_moon", "ambience": "amb_moon_loop", "friction": 0.85,
 		"chatter": ["ONE SMALL STEP...", "I'M FLOATING!", "IS THAT EARTH?", "WHY IS THE BUS FLOATY?",
@@ -159,7 +159,7 @@ const ALL := {
 			"surface": {"style": 5, "top": "#7ac8a0", "road": "#2c2a3c", "road_d": "#22202e", "fleck": "#4a5a6a",
 				"bed": "#3a3048", "bed_d": "#2a2238", "glow": "#7affc8", "road_depth": 6, "bed_depth": 3}},
 		"floating": true,
-		"decor": ["alienplant", "alienplant", "crystal", "stalk"], "fg": "",
+		"decor": ["alienplant", "alienplant", "crystal", "stalk"], "fg": "tendril",
 		"life": ["spores", "jellies"], "gravity": 0.75,
 		"music": "music_border", "ambience": "amb_border_loop", "friction": 0.9,
 		"chatter": ["WHERE ARE WE?!", "THE ROCKS ARE FLOATING!", "I DON'T LIKE THIS DIMENSION",
@@ -168,8 +168,54 @@ const ALL := {
 }
 
 
+## Skies a level can override its world's default with: "biome@time", e.g. "desert@noon".
+const TIMES := {
+	"dawn": {"sky": ["#2a2a5a", "#4a3a7a", "#7a4a8a", "#c06a8a", "#f09a8a", "#ffc8a0", "#ffe8c0"],
+		"mix": 0.55, "tint": Color(0.86, 0.8, 0.86), "stars": 0.4, "hills": [Color("#4a2a4a"), 0.15],
+		"sun": {"r": 26, "top": "#fff4c0", "bottom": "#ff9a70", "stripes": true, "x": 90}},
+	"noon": {"sky": ["#2a5ab8", "#3a6ac8", "#4a7ad0", "#5a8ad8", "#7aa2e0", "#9ab8e8", "#c0d8f4"],
+		"mix": 0.7, "tint": Color(1.0, 1.0, 1.0), "stars": 0.0, "hills": [Color("#6a8ad0"), 0.12],
+		"sun": {"r": 14, "top": "#ffffff", "bottom": "#fff8d0", "stripes": false, "x": 250}},
+	"night": {"sky": ["#04040e", "#080a1a", "#0c1026", "#101632", "#141c3c", "#1a2446", "#202c50"],
+		"mix": 0.8, "tint": Color(0.36, 0.4, 0.62), "stars": 1.3, "hills": [Color("#0a0e20"), 0.6],
+		"sun": {"r": 13, "top": "#f4f6ff", "bottom": "#c8d0f0", "stripes": false, "x": 380, "moon": true}},
+}
+
+static var _variants := {}
+
+
 static func get_biome(name: String) -> Dictionary:
-	return ALL.get(name, ALL.desert)
+	if not "@" in name:
+		return ALL.get(name, ALL.desert)
+	if not _variants.has(name):
+		_variants[name] = _at_time(ALL.get(name.get_slice("@", 0), ALL.desert), name.get_slice("@", 1))
+	return _variants[name]
+
+
+## Base biome name without a time-of-day suffix.
+static func base_name(name: String) -> String:
+	return name.get_slice("@", 0)
+
+
+static func _at_time(base: Dictionary, time: String) -> Dictionary:
+	if not TIMES.has(time):
+		return base
+	var t: Dictionary = TIMES[time]
+	var b := base.duplicate(true)
+	var sky: Array = []
+	for i in b.sky.size():
+		sky.append(Color(b.sky[i]).lerp(Color(t.sky[i % t.sky.size()]), t.mix).to_html(false))
+	b.sky = sky
+	b.modulate = (b.modulate as Color).lerp(t.tint, 0.7)
+	b.stars = t.stars
+	b.sun = t.sun.duplicate()
+	for layer in b.layers:  # backdrop silhouettes take the light too (they sit outside the world tint)
+		layer.color = Color(layer.color).lerp(t.hills[0], t.hills[1]).to_html(false)
+		if layer.has("cap"):
+			layer.cap = Color(layer.cap).lerp(t.hills[0], t.hills[1] * 0.7).to_html(false)
+	if time != "night":
+		b.aurora = false
+	return b
 
 
 static func color(c) -> Color:

@@ -1,6 +1,8 @@
-# Ideas on hold: Story mode and 2.5D
+# Ideas: Story mode and 2.5D
 
-Plans to talk over, not built yet. Shipped work lives in the git log.
+Story mode now ships as **Route 99** (`scripts/game/story.gd`, `story_run.gd`). It's a cut-down
+version of the plan below: three worlds, seven legs, a roguelike run on 7 lives with no saves.
+The pitch and the challenge list stay here as the backlog. 2.5D is still on hold.
 
 ---
 
@@ -53,7 +55,18 @@ Ranked by how much new gameplay each one gives for the build effort.
 | 11 | **Night route** | Headlights only. The headlight cone already exists. | A darker tint plus fewer backdrop lights. |
 | 12 | **Gravity flip** (Borderworld) | Drive on the underside of floating islands. | Per-zone gravity direction. The flashiest one, so save it for the secret leg. |
 
-### Build plan (when we go)
+### Built so far
+
+- Hill stops and downhill drop-offs (#1, #2): the `stop` terrain segment and `StopMarkers`. Holding brake in the box locks the wheels.
+- Passengers as cargo (#3), arcade version: hard landings bonk riders, three bonks and they walk off at the next stop, and a FULL BUS bonus.
+- Towing (#4, as a trailer): `Trailer` snaps on hard landings. Back up to re-hook; a jack stand holds the tongue at hitch height.
+- Requests (#5): front flip, no flips, big air.
+- Chase (#9): `Chase`, the mudslide.
+- Night route (#11): `biome@night` sky variants.
+
+Still open: ferry, drawbridge, low tunnel, rope bridge, gravity flip, more legs and worlds.
+
+### Original build plan
 
 1. **Prototype #1 (hill stop) inside one arcade level** to see whether stopping is fun next to
    all the flying. This is the cheapest test of the core Story idea.

@@ -64,12 +64,13 @@ func _play() -> void:
 		["FLIPS", str(data.style.flips) + (" (%d FRONT)" % data.style.front if data.style.get("front", 0) > 0 else "")],
 		["CLOSE CALLS", str(data.style.close)],
 		["BEST AIR", "%.1fs" % data.style.air],
-		["FUEL LEFT", "%d%%" % data.fuel_pct],
+		["FUEL LEFT", "%d%% +%d" % [data.fuel_pct, data.get("overtime", 0)]],
+		["RIDERS", data.get("riders", "-") + ("  FULL!" if data.get("full_bus", false) else "")],
 		["RETRIES", str(data.retries)],
 	]
 	var tw := create_tween()
 	for i in rows.size():
-		var y := 72 + i * 11
+		var y := 70 + i * 10
 		var l := _text(rows[i][0], Vector2(84, y), 8, Color("#d8f8ff"), 110, HORIZONTAL_ALIGNMENT_LEFT)
 		var v := _text(rows[i][1], Vector2(196, y), 8, Color.WHITE, 104, HORIZONTAL_ALIGNMENT_RIGHT)
 		l.modulate.a = 0.0
@@ -122,7 +123,9 @@ func _stamp_grade() -> void:
 
 func _menu() -> void:
 	var entries := [["next", "NEXT LEVEL"], ["restart", "RETRY"], ["menu", "MENU"]]
-	if data.last:
+	if data.get("story", false):  # roguelike: no replays, onwards down the route
+		entries = [["story_next", "CONTINUE"]]
+	elif data.last:
 		entries = [["menu", "YOU BEAT THE GAME!"], ["restart", "RETRY"]]
 	var menu := MenuList.new().setup(entries, 8, 11)
 	menu.position = Vector2(240, 212)

@@ -23,6 +23,8 @@ const TEX_FLAME := preload("res://assets/sprites/flame.png")
 const TEX_AXLE := preload("res://assets/sprites/axle.png")
 const TEX_RADIAL := preload("res://assets/sprites/light_radial.png")
 const TEX_CONE := preload("res://assets/sprites/light_cone.png")
+const TEX_DOG := preload("res://assets/sprites/dog.png")
+const DOG_POS := Vector2(-39, -5)  ## head out of the rear window, outside the glass
 # Breakable pieces: name, texture, rect in body px (x 0..79 cabin, 80..99 hood; y 0..45 rack->skirt), mass.
 # Layout (see tools/gen_art.py): rack 1..11, roof 12..14, windows 17..27, panels 29..41, skirt 42..45.
 const INTERIOR := [  # drawn behind the passengers
@@ -144,6 +146,17 @@ var _skin: Node2D
 var _springs_node: Node2D
 var _glass: Sprite2D
 var _smoke: CPUParticles2D
+var _burn := 0.0  ## seconds the rocket has been held: the flame grows with it
+var _tire_smoke: Array[CPUParticles2D] = []
+var _skidding := false
+var _rack_y := 0.0  ## luggage bounce on the roof rack
+var _rack_vel := 0.0
+var _dog: Sprite2D
+## Landing dust look, set by the world from its biome: dust | mud | snow | moondust | sparks | gravel | spores
+var impact_style := "dust"
+## Inside a bus-stop box: holding brake at low speed locks the wheels (no reversing),
+## so the bus can sit still on a steep hill while people board.
+var brake_lock := false
 
 
 func setup(pos: Vector2, rot := 0.0, vel := Vector2.ZERO, spin := 0.0) -> Bus:
@@ -161,6 +174,7 @@ func _ready() -> void:
 	_build_wheels()
 	_build_springs()
 	_build_lights()
+	_build_tire_smoke()
 	_prev_vel = _spawn_vel
 	audio = BusAudio.new(self)
 	add_child(audio)
@@ -225,6 +239,10 @@ func _build_skin() -> void:
 		_shell[piece[0]] = s
 	_rocket_sprite = _sprite(TEX_ROCKET, ROCKET_POS)
 	skin.add_child(_rocket_sprite)
+	_dog = _sprite(TEX_DOG, DOG_POS)
+	_dog.hframes = 3
+	_dog.light_mask = 3
+	skin.add_child(_dog)
 
 	# Everything that burns lives under one node so it can follow the rocket
 	# when the rocket tears off.
@@ -426,6 +444,9 @@ func _physics_process(delta: float) -> void:
 	var accel := (chassis.linear_velocity - _prev_vel) / delta
 	var proper := (accel - Vector2(0, _gravity)).rotated(-chassis.rotation)
 	passengers.update_sway(proper, _gravity, delta)
+	_bounce_rack(proper, delta)
+	_animate_dog()
+	_update_skid(right, wheel_contacts > 0)
 	if wheel_contacts == 0:
 		passengers.on_airborne(_air_time, rocket_firing)
 	_prev_vel = chassis.linear_velocity
@@ -441,7 +462,10 @@ func _drive(right: float) -> void:
 			if w.angular_velocity < max_wheel_spin:
 				w.apply_torque(drive_torque * right * grip)
 		elif right < 0.0:
-			if speed > 25.0:
+			if brake_lock and absf(speed) < 60.0:
+				w.angular_velocity = 0.0
+				chassis.linear_velocity *= 0.92
+			elif speed > 25.0:
 				w.apply_torque(-brake_torque * grip * signf(w.angular_velocity))
 			elif w.angular_velocity > -max_wheel_spin * 0.4:
 				w.apply_torque(drive_torque * right * 0.6)
@@ -609,6 +633,7 @@ func _air_control(right: float) -> void:
 
 
 func _rocket(on: bool, delta: float) -> void:
+	_burn = _burn + delta if on else 0.0
 	if on:
 		# Thrust through the whole rig's centre of mass (chassis + wheels). Pushing
 		# only the chassis COM lets the dangling wheels drag the nose down.
@@ -674,6 +699,7 @@ func _touchdown(body_first: bool) -> void:
 	elif impact < perfect_impact and angle < perfect_angle:
 		grade = "perfect"
 	last_landing.grade = grade
+	_impact_fx(impact, grade)
 	passengers.react(grade)
 	_announce(grade)
 	landed.emit(grade, impact, angle)
@@ -697,6 +723,130 @@ func _announce(grade: String) -> void:
 		"hard":
 			Fx.float_text(at, "HARD LANDING", Color("#ff9a2e"), 16)
 			Fx.shake(3.0)
+
+
+# --- Feel: dust, squash, smoke, luggage ---------------------------------------
+
+const IMPACT_COLORS := {
+	"dust": [Color("#e8c08a"), Color("#b08a5a")], "mud": [Color("#6a4628"), Color("#3a2614")],
+	"snow": [Color("#ffffff"), Color("#c8d8f8")], "moondust": [Color("#c8c8d4"), Color("#8a8a98")],
+	"sparks": [Color("#ffd060"), Color("#ff5a20")], "gravel": [Color("#9a96a8"), Color("#5a5662")],
+	"spores": [Color("#9affd8"), Color("#3a8a6a")],
+}
+
+
+## Dust kicked out from under both tyres, plus a one-frame squash of the body.
+func _impact_fx(impact: float, grade: String) -> void:
+	var cols: Array = IMPACT_COLORS.get(impact_style, IMPACT_COLORS.dust)
+	var power := clampf(impact / hard_impact, 0.3, 1.4)
+	for w in wheels:
+		var p := CPUParticles2D.new()
+		p.position = w.global_position + Vector2(0, WHEEL_RADIUS - 2)
+		p.one_shot = true
+		p.explosiveness = 0.9
+		p.amount = int(18 * power) + 6
+		p.lifetime = 1.6 if impact_style == "moondust" else 0.7
+		p.direction = Vector2.UP
+		p.spread = 75.0
+		p.gravity = Vector2(0, 40 if impact_style == "moondust" else (500 if impact_style in ["mud", "sparks", "gravel"] else 160))
+		p.initial_velocity_min = 40.0 * power
+		p.initial_velocity_max = 150.0 * power
+		p.damping_min = 30.0 if impact_style == "moondust" else 80.0
+		p.damping_max = p.damping_min + 40.0
+		p.scale_amount_min = 1.0
+		p.scale_amount_max = 3.0 if impact_style in ["dust", "snow", "moondust", "spores"] else 1.6
+		p.color_ramp = _gradient([[0.0, cols[0]], [0.6, cols[1]], [1.0, Color(cols[1], 0.0)]])
+		add_child(p)
+		p.emitting = true
+		get_tree().create_timer(p.lifetime + 0.3).timeout.connect(p.queue_free)
+	var squash := 0.06 + 0.08 * clampf(impact / hard_impact, 0.0, 1.0)
+	if grade == "hard":
+		squash += 0.04
+	var tw := create_tween()
+	tw.tween_property(_skin, "scale", Vector2(1.0 + squash * 0.6, 1.0 - squash), 0.05)
+	tw.parallel().tween_property(_skin, "position:y", 22.0 * squash, 0.05)
+	tw.tween_property(_skin, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(_skin, "position:y", 0.0, 0.22).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_rack_vel -= 60.0 * power
+
+
+## Ears stream back with speed; the head bobs with the luggage.
+func _animate_dog() -> void:
+	var v := chassis.linear_velocity.length()
+	var f := 0 if v < 90.0 else 1 if v < 260.0 else 2
+	if f == 2 and Engine.get_physics_frames() % 10 < 3:
+		f = 1  # flapping in the wind
+	_dog.frame = f
+	_dog.position.y = DOG_POS.y + roundf(_rack_y * 0.5)
+
+
+func _eject_dog(vel: Vector2) -> void:
+	_dog.hide()
+	var body := RigidBody2D.new()
+	body.mass = 0.05
+	body.collision_layer = LAYER_DEBRIS
+	body.collision_mask = LAYER_WORLD
+	body.physics_material_override = _material(0.6, 0.5)  # bouncy dog
+	body.global_position = _dog.global_position + Vector2(6, 4)
+	body.linear_velocity = vel * 0.5 + Vector2(randf_range(-60, 60), -320)
+	body.angular_velocity = randf_range(-10, 10)
+	var shape := CollisionShape2D.new()
+	var circle := CircleShape2D.new()
+	circle.radius = 4.0
+	shape.shape = circle
+	body.add_child(shape)
+	var s := Sprite2D.new()
+	s.texture = TEX_DOG
+	s.hframes = 3
+	s.frame = 2
+	body.add_child(s)
+	add_child(body)
+	get_tree().create_timer(0.3).timeout.connect(func():
+		if is_instance_valid(body):
+			Fx.float_text(body.global_position + Vector2(0, -10), "YIP!", Color("#ffd28a")))
+
+
+## Luggage rides a stiff spring on the rack: hops on landings, settles back.
+func _bounce_rack(proper_accel: Vector2, delta: float) -> void:
+	var target := clampf(-(proper_accel.y + _gravity) * 0.003, -2.0, 1.0)
+	_rack_vel += ((target - _rack_y) * 260.0 - _rack_vel * 12.0) * delta
+	_rack_y = clampf(_rack_y + _rack_vel * delta, -4.0, 1.0)
+	var rack: Sprite2D = _shell.rack
+	rack.position.y = CANVAS_ORIGIN.y + roundf(_rack_y)
+	_shell.sign.position.y = rack.position.y
+
+
+func _build_tire_smoke() -> void:
+	for w in wheels:
+		var p := CPUParticles2D.new()
+		p.emitting = false
+		p.amount = 30
+		p.lifetime = 0.8
+		p.local_coords = false
+		p.direction = Vector2(-1, -0.6)
+		p.spread = 30.0
+		p.gravity = Vector2(0, -30)
+		p.initial_velocity_min = 20.0
+		p.initial_velocity_max = 60.0
+		p.damping_min = 20.0
+		p.damping_max = 40.0
+		p.scale_amount_min = 2.0
+		p.scale_amount_max = 4.0
+		p.scale_amount_curve = _grow_curve()
+		p.color_ramp = _gradient([[0.0, Color(0.85, 0.85, 0.88, 0.7)], [1.0, Color(0.6, 0.6, 0.66, 0.0)]])
+		add_child(p)
+		_tire_smoke.append(p)
+
+
+## Hard braking at speed: tyres scream and smoke.
+func _update_skid(right: float, grounded: bool) -> void:
+	var skid := grounded and right < -0.5 and get_speed() > 140.0
+	if skid and not _skidding:
+		Audio.play("skid", -8.0, randf_range(0.9, 1.1))
+	_skidding = skid
+	for i in _tire_smoke.size():
+		_tire_smoke[i].emitting = skid
+		_tire_smoke[i].global_position = wheels[i].global_position + Vector2(0, WHEEL_RADIUS - 2)
 
 
 # --- Crash / break apart ----------------------------------------------------
@@ -752,7 +902,10 @@ func _break_apart() -> void:
 		axle.linear_velocity = vel * 0.5 + Vector2(randf_range(-60, 60), -150)
 		axle.angular_velocity = randf_range(-12.0, 12.0)
 
+	for p in _tire_smoke:
+		p.emitting = false
 	passengers.eject(self, vel)
+	_eject_dog(vel)
 	if Gore.enabled():
 		_blood_smear()
 	_spark_burst(xf * Vector2(0, 18))
@@ -864,9 +1017,12 @@ func _animate_flames(delta: float) -> void:
 	_flame_clock += delta
 	if _flame_clock >= 0.05:
 		_flame_clock = 0.0
-		for f in _flames:
+		var grow := 1.0 + minf(_burn, 1.5) * 0.5  # a long burn roars
+		for i in _flames.size():
+			var f := _flames[i]
 			f.frame = randi() % 3
-			f.scale.x = randf_range(0.85, 1.2)
+			f.scale.x = randf_range(0.85, 1.2) * grow
+			f.position.x = NOZZLES[i].x - 8 * f.scale.x
 		_rocket_light.energy = randf_range(1.2, 1.9)
 
 

@@ -1,18 +1,24 @@
 extends Node2D
 ## Plays GameState.current_level: title card, countdown, the run, and the
 ## results or retry screen.
+## Story legs (GameState.story_mode) add jobs on top: see StoryRun.
 ## User args: --level=N (start at N)  --bot (autopilot)  --botall (bot plays every level, prints a report)
+##            --story=ID (play a story leg)  --botstory (bot plays every story leg)
 ## (Always test at normal speed: raising time_scale enlarges physics steps and changes outcomes.)
 
 enum State { INTRO, PLAY, WON, FAILED }
 
 const FAIL_TEXT := {
 	"chasm": "FELL IN!", "water": "SPLASHDOWN!", "swamp": "SWAMPED!", "ice": "ON THIN ICE!",
-	"lava": "TOASTED!", "crash": "WRECKED!",
+	"lava": "TOASTED!", "crash": "WRECKED!", "cargo": "LOST THE CARGO!", "mudslide": "BURIED IN MUD!",
+	"missed": "MISSED A STOP!",
 }
 const POINTS := {"perfect": 1000, "good": 500, "hard": 150}
 const FRONT_FLIP_POINTS := 2000  ## per front flip stuck (+half again for a perfect landing)
 const BACKFLIP_POINTS := 750
+const FULL_BUS_POINTS := 1500  ## nobody walked off
+const OVERTIME_PER_FUEL := 25  ## leftover fuel turns into points at the finish
+const BONKS_TO_LEAVE := 3
 
 var index := 0
 var def: Dictionary
@@ -50,6 +56,16 @@ var _comet := false
 var _speed_lines: Control
 var _cp_passed := -INF
 var _flip_points := 0  ## bonus banked from flips that were landed
+var _rush: Control  ## speed lines at the screen edges when the bus is flying along
+var _rush_amount := 0.0
+var _leaving: Array[Dictionary] = []  ## riders fed up with the bonks: off at the next stop
+var _ghost_run := PackedFloat32Array()
+var _recording := false
+var _max_x := -INF
+var _story: StoryRun  ## story-leg jobs (null in arcade levels)
+var _story_id := ""
+var _walked := 0  ## riders who quit during this run
+var _finish_blocked := ""
 
 
 func _ready() -> void:
@@ -57,13 +73,28 @@ func _ready() -> void:
 	for a in _args:
 		if a.begins_with("--level=") and bot_report.is_empty():
 			GameState.current_level = int(a.substr(8))
-	_bot = "--bot" in _args or "--botall" in _args
+	_bot = "--bot" in _args or "--botall" in _args or "--botstory" in _args
 	if _bot and bot_retries == 0:
 		GameState.checkpoint = {}
-	_skip_intro = "--botall" in _args
+	_skip_intro = "--botall" in _args or "--botstory" in _args
+	for a in _args:
+		if a.begins_with("--story="):
+			GameState.story_mode = true
+			if GameState.story.is_empty():
+				GameState.new_story()
+			GameState.story.at = a.substr(8)
+	if "--botstory" in _args:
+		GameState.story_mode = true
+		if GameState.story.is_empty():
+			GameState.new_story()
+			GameState.story.at = Story.ids()[0]
 	index = GameState.current_level
-	def = Levels.get_level(index)
-	if GameState.checkpoint.get("level", -1) == index:
+	if GameState.story_mode:
+		_story_id = GameState.story.at
+		def = Story.leg(_story_id)
+	else:
+		def = Levels.get_level(index)
+	if str(GameState.checkpoint.get("level", "")) == _level_key():
 		_resume = GameState.checkpoint.duplicate(true)
 		_cp_passed = _resume.x
 	world = World.new().build(def.biome, def.segments)
@@ -94,8 +125,18 @@ func _ready() -> void:
 	world.set_weather(def.get("weather", ""))
 	bus.headwind = world.weather.headwind if world.weather else 0.0
 	_hook_bus()
+	if _story_id != "":
+		_story = StoryRun.new().setup(self, def)
+		add_child(_story)
+	_recording = _resume.is_empty() and not _bot
+	if not _bot:
+		_spawn_ghost()
 	world.start_ambience()
 	_build_hud()
+	if _story:
+		_story.build_hud(_hud.layer)
+		_hud_lives()
+	_update_riders()
 	_intro()
 
 
@@ -119,7 +160,10 @@ func _intro() -> void:
 		bus.controls_enabled = false
 		world.camera.target = bus.chassis
 		bus.passengers.event("start")
-	var card_text := "%s  %s" % [Levels.code(index), def.title]
+	if _story and _resume.is_empty() and not _skip_intro:
+		await _radio(def.radio)
+		if not is_inside_tree(): return
+	var card_text := "%s  %s" % [_code(), def.title]
 	if not _resume.is_empty():
 		card_text = "CHECKPOINT"
 	var card := _label(_hud.layer, card_text, Vector2(0, 90), 16, Color("#ffcc26"), 4)
@@ -147,7 +191,9 @@ func _intro() -> void:
 	Audio.play("count_go", -4.0)
 	state = State.PLAY
 	bus.controls_enabled = true
-	if index == 0 and not _bot:
+	if _story:
+		_story.start()
+	if index == 0 and not _bot and not _story:
 		_hint("HOLD  D / RIGHT  TO DRIVE")
 
 
@@ -161,6 +207,9 @@ func _physics_process(delta: float) -> void:
 	clock += delta
 	var c := bus.chassis
 	var x := c.global_position.x
+	_max_x = maxf(_max_x, x)
+	while _recording and _ghost_run.size() / Ghost.STRIDE <= int(clock * Ghost.RATE):
+		Ghost.sample(bus, _ghost_run)
 	_hud.time.text = "%d.%d" % [int(clock), int(fmod(clock, 1.0) * 10)]
 	_hud.fuel.size.x = roundf(60 * bus.fuel_ratio())
 	_hud.fuel.color = Color("#ff4aa8") if bus.fuel_ratio() > 0.25 else Color("#ff3b3b")
@@ -176,6 +225,21 @@ func _physics_process(delta: float) -> void:
 		bus.hazard(gap.kind, Vector2(x, gap.liquid_y))
 		return
 	_track_style(delta)
+	if _story:
+		var why := _story.step(delta)
+		if why != "":
+			_fail(why)
+			return
+	if x > world.terrain.finish_x and _story:
+		var block := _story.finish_block()
+		if block == "missed":
+			_fail("missed")
+			return
+		if block != "":
+			if _finish_blocked != block:
+				_finish_blocked = block
+				_hint(block)
+			x = world.terrain.finish_x - 1.0  # not over the line until the job's done
 	if x > world.terrain.finish_x:
 		# Soaring past the finish in the top half of the screen = comet exit.
 		var screen_y := (get_viewport().get_canvas_transform() * c.global_position).y
@@ -186,12 +250,18 @@ func _physics_process(delta: float) -> void:
 			_reach_checkpoint(cx)
 	if _bot:
 		_bot_drive()
+		if _story:
+			var take := _story.bot_input()
+			if not take.is_empty():
+				bus.ai_input = take
 		if clock > 240.0:
 			_bot_done("FAILED", "timeout: stuck at x=%d speed=%d" % [x, bus.get_speed()])
 			state = State.FAILED
 			return
 	_tutorial(x)
 	_chatter(delta, x)
+	_rush_amount = lerpf(_rush_amount, clampf((c.linear_velocity.length() - 380.0) / 220.0, 0.0, 1.0), 1.0 - exp(-4.0 * delta))
+	_rush.queue_redraw()
 	# Help a player who is stuck (flipped wheels-up, or sitting still for ages).
 	_stuck_time = _stuck_time + delta if absf(bus.get_speed()) < 5.0 and clock > 3.0 else 0.0
 	_teeter(delta)
@@ -227,6 +297,11 @@ func _teeter(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reset") and state != State.INTRO:
+		if _story and GameState.story.lives <= 0:
+			return  # out of lives: the only way is back to the depot
+		if _story and state == State.PLAY:
+			_spend_life_and_restart()
+			return
 		Transition.go("res://scenes/level.tscn")
 	elif event.is_action_pressed("pause") and state == State.PLAY:
 		_toggle_pause()
@@ -262,10 +337,11 @@ func _track_style(delta: float) -> void:
 
 func _reach_checkpoint(cx: float) -> void:
 	_cp_passed = cx
-	GameState.checkpoint = {"level": index, "x": cx, "fuel": bus.fuel, "clock": clock,
+	GameState.checkpoint = {"level": _level_key(), "x": cx, "fuel": bus.fuel, "clock": clock,
 		"landings": landings.duplicate(), "cleared": cleared, "retries": _retries, "style": _style.duplicate(),
 		"flip_points": _flip_points}
 	Audio.play("star", -4.0)
+	_let_off_leavers()
 	Fx.float_text(bus.chassis.global_position + Vector2(0, -60), "CHECKPOINT!", Color("#3cf0dc"), 16)
 	bus.passengers.driver_say(["HALFWAY THERE!", "KEEP IT TOGETHER!", "STILL IN ONE PIECE!"].pick_random())
 
@@ -275,6 +351,14 @@ func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 		return
 	landings.append(grade)
 	_cash_flips(grade)
+	if _story:
+		_story.on_landed(grade)
+	if grade == "hard":
+		var r := bus.passengers.bonk_someone()
+		if not r.is_empty() and r.bonks >= BONKS_TO_LEAVE and not r in _leaving:
+			_leaving.append(r)
+			_hint("A RIDER IS GETTING OFF AT THE NEXT STOP!")
+		_update_riders()
 	var x := bus.chassis.global_position.x
 	var now_cleared := 0
 	for g in world.terrain.gaps:
@@ -288,7 +372,7 @@ func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 		cleared = now_cleared
 		_hud.gaps.text = "GAPS %d/%d" % [cleared, world.terrain.gaps.size()]
 		Audio.play("gap_cleared", -6.0)
-		if index == 0 and _hint_step < 4:
+		if index == 0 and _hint_step < 4 and not _story:
 			_hint_step = 4
 			_hint("NICE!  NOW GET TO THE BUS STOP")
 
@@ -298,6 +382,8 @@ func _cash_flips(grade: String) -> void:
 	var front: int = _jump_flips.front
 	var back: int = _jump_flips.back
 	_jump_flips = {"front": 0, "back": 0}
+	if _story:
+		_story.on_jump(front, back, _air_now)
 	if front > 0:
 		_style.front = _style.get("front", 0) + front
 		var points := FRONT_FLIP_POINTS * front + (FRONT_FLIP_POINTS / 2 if grade == "perfect" else 0)
@@ -317,6 +403,28 @@ func _cash_flips(grade: String) -> void:
 
 func _exit_tree() -> void:
 	Fanfare.restore_time()  # never leave the game stuck in slow motion
+	if _recording:
+		Ghost.offer(_level_key(), _ghost_run, 1e6 - clock if state == State.WON else _max_x)
+
+
+## Retrying: race a see-through replay of your best attempt this session.
+func _spawn_ghost() -> void:
+	if not Ghost.best.has(_level_key()):
+		return
+	var ghost := Ghost.new()
+	ghost.frames = Ghost.best[_level_key()].frames
+	ghost.clock_ref = func(): return clock
+	world.add_child(ghost)
+	world.move_child(ghost, bus.get_index())
+
+
+## Identifies this level (ghosts, checkpoints).
+func _level_key() -> String:
+	return "story:" + _story_id if _story_id != "" else str(index)
+
+
+func _code() -> String:
+	return "ROUTE 99" if _story_id != "" else Levels.code(index)
 
 
 func _on_birds(count: int) -> void:
@@ -334,6 +442,8 @@ func _chatter(delta: float, x: float) -> void:
 		else:
 			bus.passengers.chatter(remark)
 	for r in world.terrain.ramps:
+		if r.get("kicker", false):
+			continue
 		if not _warned_gaps.has(r.x0) and x > r.x0 - 260 and x < r.x0:
 			_warned_gaps[r.x0] = true
 			if randf() < 0.6:
@@ -342,7 +452,7 @@ func _chatter(delta: float, x: float) -> void:
 
 
 func _tutorial(x: float) -> void:
-	if index != 0 or _bot:
+	if index != 0 or _bot or _story:
 		return
 	var ramp: Dictionary = world.terrain.ramps[0]
 	if _hint_step == 0 and x > ramp.x0 - 320:
@@ -375,14 +485,20 @@ func _win(comet := false) -> void:
 	Audio.play("level_clear", -2.0)
 	Audio.play("cheer", -6.0)
 	_style.air = maxf(_style.air, _air_now)
+	_let_off_leavers()
 	var report := _finish_report(comet)
+	if _story:
+		_story.unload_all()
+	_overtime(report.overtime)
 	GameState.checkpoint = {}
+	if _story and not _bot:
+		_story_cleared(report)
 	var showcase := "--showcase" in _args  # bot plays the real ending, nothing is saved
 	if _bot and not showcase:  # the tester bot must never touch the player's save
 		_bot_done("WON", "grade=%s spd=%d tech=%d fuel=%d landings=%s time=%.1f par=%.0f%s" % [report.grade,
 				report.speed, report.technique, bus.fuel, landings, clock, report.par, " COMET" if comet else ""])
 		return
-	if not _bot:
+	if not _bot and not _story:
 		GameState.record(index, report.score, report.stars, report.grade)
 	if comet:
 		_start_comet()
@@ -400,6 +516,8 @@ func _win(comet := false) -> void:
 
 func _finish_report(comet: bool) -> Dictionary:
 	var par := Grading.par_time(world.terrain.finish_x)
+	if _story:  # stopping for people and towing take time
+		par += 4.0 * world.terrain.stops.size() + (6.0 if _story.trailer else 0.0)
 	var speed := Grading.speed_stars(clock, par)
 	var tech := Grading.technique_stars(landings, _retries, _style)
 	var bonus := Grading.style_bonus(_style)
@@ -407,19 +525,29 @@ func _finish_report(comet: bool) -> Dictionary:
 	var score := 0
 	for g in landings:
 		score += POINTS.get(g, 0)
-	score += int(bus.fuel * 10) + maxi(0, int((par - clock) * 50))
+	var overtime := int(bus.fuel * OVERTIME_PER_FUEL)
+	if _story:
+		score += _story.tips()
+	var full := bus.passengers.aboard_count() >= bus.passengers.seat_count()
+	score += overtime + maxi(0, int((par - clock) * 50)) + (FULL_BUS_POINTS if full else 0)
 	score += _flip_points + _style.close * 400 + int(_style.air * 100) + (2500 if comet else 0)
 	return {
-		"code": Levels.code(index), "title": def.title, "time": clock, "par": par, "landings": landings.duplicate(),
+		"code": _code(), "title": def.title, "time": clock, "par": par, "landings": landings.duplicate(),
 		"style": _style.duplicate(), "fuel_pct": int(bus.fuel / bus.fuel_capacity * 100), "retries": _retries,
 		"speed": speed, "technique": tech, "grade": grade, "score": score, "comet": comet,
-		"stars": int(round((speed + tech) / 2.0)), "last": index + 1 >= Levels.count(),
+		"stars": int(round((speed + tech) / 2.0)), "last": index + 1 >= Levels.count(), "story": _story != null,
+		"overtime": overtime, "full_bus": full,
+		"riders": "%d/%d" % [bus.passengers.aboard_count(), bus.passengers.seat_count()],
 	}
 
 
 ## The bus keeps sailing like a comet: no gravity, climbing, heating up red-hot.
 func _start_comet() -> void:
 	_comet = true
+	if _story and _story.trailer:  # the trailer rides the comet too
+		for b in [_story.trailer.body, _story.trailer.wheel]:
+			b.gravity_scale = 0.0
+			b.collision_mask = 0
 	for b in [bus.chassis] + Array(bus.wheels):
 		b.gravity_scale = 0.0
 		b.collision_mask = 0
@@ -471,6 +599,18 @@ func _comet_step(delta: float) -> void:
 		_speed_lines.queue_redraw()
 
 
+## Streaks in the top and bottom of the screen; denser and brighter the faster you go.
+func _draw_rush() -> void:
+	if _rush_amount < 0.02:
+		return
+	var t := Time.get_ticks_msec() / 1000.0
+	for i in int(6 + 14 * _rush_amount):
+		var band := fmod(i * 53.0, 70.0)
+		var y := band + 40.0 if i % 2 == 0 else 270.0 - band - 20.0
+		var x := fposmod(480.0 - (t * 1100.0 + i * 167.0), 600.0) - 60
+		_rush.draw_line(Vector2(x, y), Vector2(x + 24 + (i % 4) * 12, y), Color(1, 1, 1, 0.22 * _rush_amount), 1.0)
+
+
 func _draw_speed_lines() -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	for i in 26:
@@ -499,6 +639,9 @@ func _fail(kind: String, reason := "") -> void:
 	if state != State.PLAY:
 		return
 	state = State.FAILED
+	if _story and not _bot:
+		GameState.story.lives -= 1
+		_hud_lives()
 	if _bot:
 		_bot_done("FAILED", "%s %s at x=%d fuel=%d landings=%s" % [kind, reason, bus.chassis.global_position.x, bus.fuel, landings])
 		return
@@ -554,9 +697,9 @@ func _bot_drive() -> void:
 
 
 func _bot_done(result: String, detail: String) -> void:
-	if result == "FAILED" and not GameState.checkpoint.is_empty() and bot_retries < 2:
+	if result == "FAILED" and not GameState.checkpoint.is_empty() and bot_retries < 2 and not _story:
 		bot_retries += 1
-		print("BOT   %s retry %d from checkpoint (%s)" % [Levels.code(index), bot_retries, detail.get_slice(" ", 0)])
+		print("BOT   %s retry %d from checkpoint (%s)" % [_code(), bot_retries, detail.get_slice(" ", 0)])
 		await get_tree().create_timer(0.3).timeout
 		get_tree().change_scene_to_file("res://scenes/level.tscn")
 		return
@@ -566,14 +709,20 @@ func _bot_done(result: String, detail: String) -> void:
 	GameState.checkpoint = {}
 	if not _skip_intro:  # single showcase run: let the finish play out
 		await get_tree().create_timer(3.5).timeout
-	var line := "%s %-16s %s  %s" % [Levels.code(index), def.title, result, detail]
+	var line := "%s %-16s %s  %s" % [_code(), def.title, result, detail]
 	print("BOT ", line)
 	bot_report.append(line)
 	var bot_end := Levels.count()
 	for a in _args:  # --botend=N stops a --botall batch before level N
 		if a.begins_with("--botend="):
 			bot_end = int(a.substr(9))
-	if "--botall" in _args and index + 1 < bot_end:
+	var legs := Story.ids()
+	if "--botstory" in _args and legs.find(_story_id) + 1 < legs.size():
+		GameState.story.at = legs[legs.find(_story_id) + 1]
+		await get_tree().create_timer(0.3).timeout
+		if not is_inside_tree(): return
+		get_tree().change_scene_to_file("res://scenes/level.tscn")
+	elif "--botall" in _args and index + 1 < bot_end:
 		GameState.current_level = index + 1
 		await get_tree().create_timer(0.3).timeout
 		if not is_inside_tree(): return
@@ -591,11 +740,17 @@ func _build_hud() -> void:
 	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 	_hud.layer = layer
-	_label(layer, "%s %s" % [Levels.code(index), def.title], Vector2(8, 8), 8, Color("#ffcc26"), 2)
+	_label(layer, def.title if _story_id != "" else "%s %s" % [_code(), def.title], Vector2(8, 8), 8, Color("#ffcc26"), 2)
 	_hud.gaps = _label(layer, "GAPS 0/%d" % world.terrain.gaps.size(), Vector2(8, 20), 8, Color("#3cf0dc"), 2)
+	_rush = Control.new()
+	_rush.size = Vector2(480, 270)
+	_rush.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rush.draw.connect(_draw_rush)
+	layer.add_child(_rush)
 	var minimap := Minimap.new().setup(world, bus)
 	minimap.position = Vector2(156, 5)
 	layer.add_child(minimap)
+	_hud.riders = _label(layer, "", Vector2(8, 32), 8, Color("#ff9ad2"), 2)
 	_hud.time = _label(layer, "0.0", Vector2(0, 34), 8, Color.WHITE, 2)
 	_hud.time.size.x = 480
 	_hud.time.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -616,6 +771,63 @@ func _build_hud() -> void:
 	_hud.hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label(layer, "R RETRY   ESC PAUSE   H HORN", Vector2(0, 256), 8, Color(1, 1, 1, 0.45), 0).size.x = 480
 	layer.get_child(-1).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+func _update_riders() -> void:
+	var p := bus.passengers
+	_hud.riders.text = "RIDERS %d/%d" % [p.aboard_count(), p.seat_count()]
+	if not _leaving.is_empty():
+		_hud.riders.text += "  (%d LEAVING)" % _leaving.size()
+
+
+## Riders who've had enough bonks get off here and stomp away.
+func _let_off_leavers() -> void:
+	for r in _leaving:
+		if r.aboard:
+			_walked += 1
+			_walk_off(r, ["I'M WALKING!", "HMPH!", "NEVER AGAIN!", "MY NECK!"].pick_random())
+	_leaving.clear()
+	_update_riders()
+
+
+## A rider leaves the bus through the door and walks off (back the way we came).
+func _walk_off(r: Dictionary, line: String) -> void:
+	var src: Sprite2D = r.sprite
+	var walker := Sprite2D.new()
+	walker.texture = src.texture
+	walker.hframes = src.hframes
+	walker.vframes = src.vframes
+	walker.frame = src.frame
+	walker.flip_h = true
+	walker.global_position = bus.chassis.to_global(Vector2(6, 4))
+	world.add_child(walker)
+	bus.passengers.set_aboard(r, false)
+	Fx.float_text(walker.global_position + Vector2(0, -12), line, BusPassengers.SHIRTS[r.row].lightened(0.25))
+	var ground := world.terrain.surface_y(walker.global_position.x - 40)
+	if is_nan(ground):
+		ground = walker.global_position.y + 20
+	var tw := walker.create_tween()
+	tw.tween_property(walker, "global_position", Vector2(walker.global_position.x - 20, ground - 6), 0.35)
+	for k in 6:  # stomp, stomp
+		tw.tween_property(walker, "global_position:x", walker.global_position.x - 34 - k * 10, 0.18)
+		tw.parallel().tween_property(walker, "rotation", 0.15 if k % 2 == 0 else -0.15, 0.18)
+	tw.tween_property(walker, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(walker.queue_free)
+
+
+## Leftover fuel drains out of the gauge into the score.
+func _overtime(points: int) -> void:
+	if points <= 0 or _bot:
+		return
+	var l := _label(_hud.layer, "OVERTIME +0", Vector2(330, 22), 8, Color("#7dff6a"), 2)
+	var tw := create_tween()
+	tw.tween_interval(0.6)
+	tw.tween_property(_hud.fuel, "size:x", 0.0, 1.2)
+	tw.parallel().tween_method(func(v: int):
+		l.text = "OVERTIME +%d" % v
+		if v % 9 == 0:
+			Audio.play("score_tick", -14.0), 0, points, 1.2)
+	tw.tween_callback(Audio.play.bind("cha_ching", -6.0))
 
 
 func _hint(text: String) -> void:
@@ -685,6 +897,9 @@ func _toggle_pause() -> void:
 
 
 func _show_retry(reason: String) -> void:
+	if _story:
+		_show_story_retry(reason)
+		return
 	_end_panel = _panel(reason, Color("#ff3b4e"))
 	var line := _label(_end_panel, "GAPS CLEARED %d/%d" % [cleared, world.terrain.gaps.size()], Vector2(110, 86), 8, Color.WHITE, 2)
 	line.size.x = 260
@@ -717,13 +932,26 @@ func _on_menu_choice(id: String) -> void:
 			GameState.current_level = index + 1
 			Transition.go("res://scenes/level.tscn")
 		"retry":  # from the last checkpoint, if there is one
+			if _story and state == State.PLAY:
+				_spend_life_and_restart()
+				return
 			Transition.go("res://scenes/level.tscn")
 		"restart":
 			GameState.checkpoint = {}
+			if _story and state == State.PLAY:
+				_spend_life_and_restart()
+				return
 			Transition.go("res://scenes/level.tscn")
 		"menu":
 			GameState.checkpoint = {}
-			Transition.go("res://scenes/main_menu.tscn")
+			Transition.go("res://scenes/story_map.tscn" if _story else "res://scenes/main_menu.tscn")
+		"story_next":
+			GameState.checkpoint = {}
+			Transition.go("res://scenes/story_map.tscn")
+		"give_up":
+			GameState.story.over = "dead"
+			GameState.checkpoint = {}
+			Transition.go("res://scenes/story_map.tscn")
 
 
 func _label(parent: Node, text: String, pos: Vector2, size: int, color: Color, outline: int) -> Label:
@@ -733,3 +961,90 @@ func _label(parent: Node, text: String, pos: Vector2, size: int, color: Color, o
 	l.label_settings = PixelFont.settings(size, color, outline)
 	parent.add_child(l)
 	return l
+
+
+# --- Story ------------------------------------------------------------------------
+
+## Dispatch radio card: the leg's briefing typed out line by line. Any key skips.
+func _radio(lines: Array) -> void:
+	var box := ColorRect.new()
+	box.color = Color(0.05, 0.03, 0.09, 0.9)
+	box.position = Vector2(60, 70)
+	box.size = Vector2(360, 96)
+	_hud.layer.add_child(box)
+	var head := _label(box, "DISPATCH  -  %s" % def.title, Vector2(8, 8), 8, Color("#ff4aa8"), 0)
+	head.size.x = 344
+	var body := _label(box, "", Vector2(8, 26), 8, Color("#d8f8ff"), 0)
+	body.size = Vector2(344, 64)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.label_settings.line_spacing = 4
+	var text := "\n".join(lines)
+	for i in text.length():
+		body.text = text.substr(0, i + 1)
+		if i % 3 == 0:
+			Audio.play("typewriter", -14.0, randf_range(0.95, 1.05))
+		await get_tree().create_timer(0.025).timeout
+		if not is_inside_tree(): return
+	await get_tree().create_timer(1.4).timeout
+	if is_inside_tree():
+		box.queue_free()
+
+
+## Bailing out of a leg mid-run costs a life, like crashing would.
+func _spend_life_and_restart() -> void:
+	get_tree().paused = false
+	GameState.story.lives -= 1
+	if GameState.story.lives <= 0:
+		GameState.story.over = "dead"
+		Transition.go("res://scenes/story_map.tscn")
+	else:
+		Transition.go("res://scenes/level.tscn")
+
+
+func _hud_lives() -> void:
+	if not _hud.has("lives"):
+		_hud.lives = _label(_hud.layer, "", Vector2(364, 22), 8, Color("#ff5a78"), 2)
+	_hud.lives.text = "LIVES %d/%d" % [maxi(0, GameState.story.lives), Story.LIVES]
+	if GameState.story.lives <= 0:
+		_hud.lives.text = "NO LIVES LEFT"
+
+
+## Bank a cleared leg into the run: score, riders who walked, a life for S grades.
+func _story_cleared(report: Dictionary) -> void:
+	var run: Dictionary = GameState.story
+	run.path.append(_story_id)
+	run.score += report.score
+	run.walked += _walked
+	run.lost_cargo += _story.lost_cargo
+	if report.grade in ["S", "SS"] and run.lives < Story.LIVES:
+		run.lives += 1
+		Fx.float_text(bus.chassis.global_position + Vector2(0, -90), "+1 LIFE", Color("#ff5a78"), 16)
+	var next: Array = def.next
+	if next.is_empty():
+		run.over = "won"
+	elif next.size() == 1:
+		run.at = next[0]
+	else:
+		run.at = ""  # a fork: the story map asks which way
+
+
+func _show_story_retry(reason: String) -> void:
+	var lives: int = GameState.story.lives
+	_end_panel = _panel(reason, Color("#ff3b4e"))
+	var line := _label(_end_panel, "LIVES LEFT: %d" % lives if lives > 0 else "OUT OF LIVES.  ROUTE 99 IS CANCELLED.",
+			Vector2(110, 86), 8, Color("#ff5a78"), 2)
+	line.size.x = 260
+	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var entries := []
+	if lives > 0:
+		var has_cp := not GameState.checkpoint.is_empty()
+		entries.append(["retry", "RETRY FROM CHECKPOINT" if has_cp else "TRY AGAIN"])
+		if has_cp:
+			entries.append(["restart", "RESTART LEG"])
+		entries.append(["give_up", "GIVE UP THE ROUTE"])
+	else:
+		entries.append(["give_up", "BACK TO THE DEPOT"])
+	var menu := MenuList.new().setup(entries, 8, 16)
+	menu.position = Vector2(240, 130)
+	_end_panel.add_child(menu)
+	menu.chosen.connect(_on_menu_choice)

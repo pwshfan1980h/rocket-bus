@@ -39,6 +39,7 @@ func _ready() -> void:
 	_logo.pivot_offset = Vector2(240, 16)
 	_label(ui, "TIME THE ROCKET.  LAND IT LEVEL.", Vector2(0, 66), 8, Color.WHITE, 2)
 	var entries := [["start", "START" if GameState.unlocked <= 1 else "CONTINUE  %s" % Levels.code(GameState.unlocked - 1)],
+		["story", "STORY: ROUTE 99" + ("  (IN PROGRESS)" if GameState.in_story() else "")],
 		["select", "LEVEL SELECT"], ["lab", "BUS LAB"], ["music", _onoff("MUSIC", GameState.music_on)],
 		["sfx", _onoff("SOUND", GameState.sfx_on)], ["gore", _onoff("GORE", GameState.gore_on)]]
 	if OS.get_name() != "Web":
@@ -69,15 +70,19 @@ func _process(delta: float) -> void:
 
 
 func _on_choice(id: String) -> void:
-	if id in ["start", "select", "lab"]:
+	if id in ["start", "select", "lab", "story"]:
 		menu.active = false  # no double-triggering while the screen fades out
 	match id:
 		"start":
+			GameState.story_mode = false
 			GameState.checkpoint = {}
 			GameState.current_level = GameState.unlocked - 1
 			Transition.go("res://scenes/level.tscn")
 		"select":
+			GameState.story_mode = false
 			Transition.go("res://scenes/level_select.tscn")
+		"story":
+			Transition.go("res://scenes/story_map.tscn")
 		"lab":
 			Transition.go("res://scenes/bus_lab.tscn")
 		"music":
