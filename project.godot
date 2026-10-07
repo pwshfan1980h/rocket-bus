@@ -14,6 +14,7 @@ Fx="*res://scripts/autoload/fx.gd"
 Audio="*res://scripts/autoload/audio.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 Transition="*res://scripts/autoload/transition.gd"
+Help="*res://scripts/autoload/help.gd"
 
 [display]
 

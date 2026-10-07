@@ -407,6 +407,27 @@ func _exit_tree() -> void:
 		Ghost.offer(_level_key(), _ghost_run, 1e6 - clock if state == State.WON else _max_x)
 
 
+## Which field-guide page F1 opens on, from what's happening right now.
+func help_topic() -> String:
+	if not is_instance_valid(bus) or bus.chassis == null:
+		return "basics"
+	if _story:
+		if _story.trailer and not _story.trailer.attached:
+			return "towing"
+		var x := bus.chassis.global_position.x
+		for st in world.terrain.stops:
+			if not st.done and x > st.x0 - 900.0 and x < st.x1 + 200.0:
+				return "stops"
+		if state == State.INTRO:
+			return "story"
+	if bus.airborne:
+		return "air" if bus.fuel > 0.0 else "landing"
+	var next := world.terrain.gap_at(bus.chassis.global_position.x + 500.0)
+	if not next.is_empty():
+		return "rocket"
+	return "story" if _story else "basics"
+
+
 ## Retrying: race a see-through replay of your best attempt this session.
 func _spawn_ghost() -> void:
 	if not Ghost.best.has(_level_key()):
@@ -424,7 +445,7 @@ func _level_key() -> String:
 
 
 func _code() -> String:
-	return "ROUTE 99" if _story_id != "" else Levels.code(index)
+	return "STORY" if _story_id != "" else Levels.code(index)
 
 
 func _on_birds(count: int) -> void:
@@ -769,7 +790,7 @@ func _build_hud() -> void:
 	_hud.hint = _label(layer, "", Vector2(0, 238), 8, Color("#ffffff"), 2)
 	_hud.hint.size.x = 480
 	_hud.hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_label(layer, "R RETRY   ESC PAUSE   H HORN", Vector2(0, 256), 8, Color(1, 1, 1, 0.45), 0).size.x = 480
+	_label(layer, "R RETRY   ESC PAUSE   H HORN   F1 HELP", Vector2(0, 256), 8, Color(1, 1, 1, 0.45), 0).size.x = 480
 	layer.get_child(-1).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
@@ -879,6 +900,8 @@ func _panel(title: String, color: Color) -> Control:
 
 
 func _toggle_pause() -> void:
+	if Help.is_open():
+		return
 	if get_tree().paused:
 		get_tree().paused = false
 		_pause_panel.queue_free()
@@ -889,7 +912,10 @@ func _toggle_pause() -> void:
 	var entries := [["resume", "RESUME"]]
 	if not GameState.checkpoint.is_empty():
 		entries.append(["retry", "RETRY CHECKPOINT"])
-	entries.append_array([["restart", "RESTART LEVEL"], ["menu", "QUIT TO MENU"]])
+	if _story:
+		entries.append_array([["restart", "RESTART LEG (-1 LIFE)"], ["quit_run", "QUIT RUN"]])
+	else:
+		entries.append_array([["restart", "RESTART LEVEL"], ["menu", "QUIT TO MENU"]])
 	_pause_menu = MenuList.new().setup(entries, 8, 16)
 	_pause_menu.position = Vector2(240, 110)
 	_pause_panel.add_child(_pause_menu)
@@ -928,6 +954,11 @@ func _on_menu_choice(id: String) -> void:
 	match id:
 		"resume":
 			_toggle_pause()
+		"quit_run":  # leaving a story run ends it (no saves)
+			GameState.story = {}
+			GameState.story_mode = false
+			GameState.checkpoint = {}
+			Transition.go("res://scenes/main_menu.tscn")
 		"next":
 			GameState.current_level = index + 1
 			Transition.go("res://scenes/level.tscn")
@@ -1031,7 +1062,7 @@ func _story_cleared(report: Dictionary) -> void:
 func _show_story_retry(reason: String) -> void:
 	var lives: int = GameState.story.lives
 	_end_panel = _panel(reason, Color("#ff3b4e"))
-	var line := _label(_end_panel, "LIVES LEFT: %d" % lives if lives > 0 else "OUT OF LIVES.  ROUTE 99 IS CANCELLED.",
+	var line := _label(_end_panel, "LIVES LEFT: %d" % lives if lives > 0 else "OUT OF LIVES. THE RUN IS OVER.",
 			Vector2(110, 86), 8, Color("#ff5a78"), 2)
 	line.size.x = 260
 	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

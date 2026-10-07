@@ -6,7 +6,6 @@ const PATH := "user://save.cfg"
 const PACE := 0.93
 
 var current_level := 0
-var unlocked := 1
 var stars := {}  # level index -> 0..3
 var best := {}  # level index -> score
 var grades := {}  # level index -> best grade ("SS".."FF")
@@ -27,15 +26,13 @@ func new_story() -> void:
 	checkpoint = {}
 
 
-func in_story() -> bool:
-	return not story.is_empty() and story.over == ""
+
 
 
 func _ready() -> void:
 	Engine.time_scale = PACE
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) == OK:
-		unlocked = cfg.get_value("progress", "unlocked", 1)
 		stars = cfg.get_value("progress", "stars", {})
 		best = cfg.get_value("progress", "best", {})
 		grades = cfg.get_value("progress", "grades", {})
@@ -47,7 +44,6 @@ func _ready() -> void:
 
 func save() -> void:
 	var cfg := ConfigFile.new()
-	cfg.set_value("progress", "unlocked", unlocked)
 	cfg.set_value("progress", "stars", stars)
 	cfg.set_value("progress", "best", best)
 	cfg.set_value("progress", "grades", grades)
@@ -66,7 +62,6 @@ func record(level: int, score: int, star_count: int, grade := "") -> void:
 	if grade != "" and Grading.rank(grade) > Grading.rank(grades.get(level, "FF")):
 		grades[level] = grade
 	best[level] = maxi(best.get(level, 0), score)
-	unlocked = maxi(unlocked, mini(level + 2, Levels.count()))
 	save()
 
 

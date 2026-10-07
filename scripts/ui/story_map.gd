@@ -1,5 +1,5 @@
 extends Control
-## ROUTE 99's map: the legs as stops on a transit map, the way you've come lit up,
+## The Story map: the legs as stops on a transit map, the way you've come lit up,
 ## lives and score. Starts a run, picks a fork, sends you down the next leg, or
 ## shows how the run ended. Nothing here is saved (roguelike).
 
@@ -23,8 +23,8 @@ func _ready() -> void:
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
 	Audio.music("music_menu")
-	_text("ROUTE 99", Vector2(0, 8), 16, LINE, 4)
-	_text("STORY  -  7 LIVES, NO SAVES. ONE BAD WEEK TO RETIREMENT.", Vector2(0, 30), 8, Color(1, 1, 1, 0.55), 0)
+	_text("STORY", Vector2(0, 8), 16, LINE, 4)
+	_text("7 LIVES, START TO FINISH. ONE BAD WEEK TO RETIREMENT.   F1 HELP", Vector2(0, 30), 8, Color(1, 1, 1, 0.55), 0)
 	var run: Dictionary = GameState.story
 	var entries := []
 	if run.is_empty():
@@ -55,7 +55,7 @@ func _ready() -> void:
 			var leg := Story.leg(run.at)
 			_text(leg.blurb.to_upper(), Vector2(0, 208), 8, Color.WHITE, 2)
 			entries.append(["go", "DRIVE: " + leg.title])
-		entries.append(["menu", "MAIN MENU (RUN STAYS OPEN)"])
+		entries.append(["quit", "QUIT RUN"])
 	menu = MenuList.new().setup(entries, 8, 11)
 	menu.position = Vector2(240, 226)
 	if run.is_empty() or run.over != "":
@@ -120,12 +120,17 @@ func _on_choice(id: String) -> void:
 			_go()
 		"go":
 			_go()
-		"menu":
+		"menu", "quit":
+			GameState.story = {}  # no saves: leaving ends the run
 			GameState.story_mode = false
 			Transition.go("res://scenes/main_menu.tscn")
 		_:  # a fork choice
 			GameState.story.at = id
 			_go()
+
+
+func help_topic() -> String:
+	return "story"
 
 
 func _go() -> void:

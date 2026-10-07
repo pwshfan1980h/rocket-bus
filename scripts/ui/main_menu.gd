@@ -38,10 +38,9 @@ func _ready() -> void:
 	_logo.label_settings.shadow_offset = Vector2(3, 3)
 	_logo.pivot_offset = Vector2(240, 16)
 	_label(ui, "TIME THE ROCKET.  LAND IT LEVEL.", Vector2(0, 66), 8, Color.WHITE, 2)
-	var entries := [["start", "START" if GameState.unlocked <= 1 else "CONTINUE  %s" % Levels.code(GameState.unlocked - 1)],
-		["story", "STORY: ROUTE 99" + ("  (IN PROGRESS)" if GameState.in_story() else "")],
-		["select", "LEVEL SELECT"], ["lab", "BUS LAB"], ["music", _onoff("MUSIC", GameState.music_on)],
-		["sfx", _onoff("SOUND", GameState.sfx_on)], ["gore", _onoff("GORE", GameState.gore_on)]]
+	var entries := [["story", "STORY"], ["arcade", "ARCADE"], ["lab", "BUS LAB"],
+		["music", _onoff("MUSIC", GameState.music_on)], ["sfx", _onoff("SOUND", GameState.sfx_on)],
+		["gore", _onoff("GORE", GameState.gore_on)]]
 	if OS.get_name() != "Web":
 		entries.append(["quit", "QUIT"])
 	menu = MenuList.new().setup(entries, 8, 14)
@@ -49,6 +48,7 @@ func _ready() -> void:
 	ui.add_child(menu)
 	menu.chosen.connect(_on_choice)
 	_label(ui, "STARS %d/%d" % [GameState.total_stars(), Levels.count() * 3], Vector2(0, 244), 8, Color("#ffcc26"), 2)
+	_label(ui, "F1 HELP", Vector2(0, 230), 8, Color(1, 1, 1, 0.5), 0)
 	_label(ui, "MUSIC BY KEVIN MACLEOD (INCOMPETECH.COM)  CC BY 4.0", Vector2(0, 258), 8, Color(1, 1, 1, 0.35), 0)
 	var world_name := _label(ui, Biomes.get_biome(biome).title, Vector2(8, 254), 8, Color(1, 1, 1, 0.4), 0)
 	world_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -70,18 +70,17 @@ func _process(delta: float) -> void:
 
 
 func _on_choice(id: String) -> void:
-	if id in ["start", "select", "lab", "story"]:
+	if id in ["arcade", "lab", "story"]:
 		menu.active = false  # no double-triggering while the screen fades out
 	match id:
-		"start":
+		"arcade":  # every map, start to finish
 			GameState.story_mode = false
 			GameState.checkpoint = {}
-			GameState.current_level = GameState.unlocked - 1
+			GameState.current_level = 0
 			Transition.go("res://scenes/level.tscn")
-		"select":
+		"story":  # a fresh run, always
+			GameState.story = {}
 			GameState.story_mode = false
-			Transition.go("res://scenes/level_select.tscn")
-		"story":
 			Transition.go("res://scenes/story_map.tscn")
 		"lab":
 			Transition.go("res://scenes/bus_lab.tscn")
@@ -101,6 +100,10 @@ func _on_choice(id: String) -> void:
 			GameState.save()
 		"quit":
 			get_tree().quit()
+
+
+func help_topic() -> String:
+	return "basics"
 
 
 func _onoff(what: String, on: bool) -> String:
