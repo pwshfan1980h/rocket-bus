@@ -30,6 +30,7 @@ var landings: Array[String] = []
 var cleared := 0
 var _args := PackedStringArray()
 var _bot := false
+var _low_fuel := 1.0  ## lowest fuel share this run (the bot reports it, for tuning)
 var _skip_intro := false  ## batch bot runs skip the roll-in and countdown
 var _hud := {}
 var _hint_step := 0
@@ -204,6 +205,7 @@ func _physics_process(delta: float) -> void:
 		_comet_step(delta)
 	if state != State.PLAY or not is_instance_valid(bus) or bus.chassis == null:
 		return
+	_low_fuel = minf(_low_fuel, bus.fuel / bus.fuel_capacity)
 	clock += delta
 	var c := bus.chassis
 	var x := c.global_position.x
@@ -519,8 +521,8 @@ func _win(comet := false) -> void:
 		_story_cleared(report)
 	var showcase := "--showcase" in _args  # bot plays the real ending, nothing is saved
 	if _bot and not showcase:  # the tester bot must never touch the player's save
-		_bot_done("WON", "grade=%s spd=%d tech=%d fuel=%d landings=%s time=%.1f par=%.0f%s" % [report.grade,
-				report.speed, report.technique, bus.fuel, landings, clock, report.par, " COMET" if comet else ""])
+		_bot_done("WON", "grade=%s spd=%d tech=%d fuel=%d low=%d%% landings=%s time=%.1f par=%.0f%s" % [report.grade,
+				report.speed, report.technique, bus.fuel, _low_fuel * 100.0, landings, clock, report.par, " COMET" if comet else ""])
 		return
 	if not _bot and not _story:
 		GameState.record(index, report.score, report.stars, report.grade)
@@ -667,7 +669,8 @@ func _fail(kind: String, reason := "") -> void:
 		GameState.story.lives -= 1
 		_hud_lives()
 	if _bot:
-		_bot_done("FAILED", "%s %s at x=%d fuel=%d landings=%s" % [kind, reason, bus.chassis.global_position.x, bus.fuel, landings])
+		_bot_done("FAILED", "%s %s at x=%d fuel=%d low=%d%% landings=%s" % [kind, reason, bus.chassis.global_position.x, bus.fuel,
+				_low_fuel * 100.0, landings])
 		return
 	await get_tree().create_timer(0.5).timeout
 	if not is_inside_tree(): return

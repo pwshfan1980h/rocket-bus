@@ -4,7 +4,7 @@ extends Area2D
 
 signal collected
 
-const AMOUNT := 35.0
+const AMOUNT := 30.0
 
 var _time := 0.0
 var _taken := false

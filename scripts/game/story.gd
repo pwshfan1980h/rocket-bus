@@ -53,7 +53,7 @@ static func leg(id: String) -> Dictionary:
 static func _all() -> Dictionary:
 	return {
 		"depot": {
-			"title": "FIRST SHIFT", "biome": "city@dawn", "fuel": 100.0, "riders": 1,
+			"title": "FIRST SHIFT", "biome": "city@dawn", "fuel": 65.0, "riders": 1,
 			"blurb": "Stop in the yellow box. Hold SPACE while they board.",
 			"radio": ["DISPATCH TO BUS 99. MORNING.", "PICK UP AT THE DEPOT, THEN HILL STREET.",
 				"STOP IN THE BOX AND HOLD SPACE. NO ROLLING."],
@@ -63,7 +63,7 @@ static func _all() -> Dictionary:
 				_ramp(150, 50), _gap(270, "water", 10), _f(520), _finish()],
 		},
 		"water": {
-			"title": "WATER RUN", "biome": "desert@noon", "fuel": 110.0, "riders": 2, "trailer": "water",
+			"title": "WATER RUN", "biome": "desert@noon", "fuel": 72.0, "riders": 2, "trailer": "water",
 			"blurb": "Tow the tank. Rough landing? Back up and re-hook.",
 			"radio": ["THE DESERT TOWN'S WELL IS DRY.", "TOW THEM A TANK OF WATER.",
 				"IF THE HITCH SNAPS, BACK UP TO IT. IT'LL HOOK ITSELF."],
@@ -74,7 +74,7 @@ static func _all() -> Dictionary:
 				_ramp(160, 55), _gap(290, "chasm"), _f(560), _finish()],
 		},
 		"canyon": {
-			"title": "CANYON STOPS", "biome": "desert", "fuel": 100.0, "riders": 3,
+			"title": "CANYON STOPS", "biome": "desert", "fuel": 65.0, "riders": 3,
 			"blurb": "Steep stops on the switchbacks. Don't roll back.",
 			"radio": ["THE CANYON LINE. THREE STOPS, ALL ON HILLS.", "MESA VIEW: ONE GETS OFF.",
 				"CLIFF TOP: TWO GET ON. THEN THE ROCK GARDEN."],
@@ -86,7 +86,7 @@ static func _all() -> Dictionary:
 				_gap(280, "water"), _f(520), _finish()],
 		},
 		"river": {
-			"title": "RIVER CROSSING", "biome": "jungle", "weather": "rain", "fuel": 110.0, "riders": 3,
+			"title": "RIVER CROSSING", "biome": "jungle", "weather": "rain", "fuel": 72.0, "riders": 3,
 			"trailer": "canoe", "requests": [{"who": "KID", "want": "front_flip", "tip": 1500}],
 			"blurb": "Tow the canoe across. The kid wants a front flip.",
 			"radio": ["RIVER'S UP. THE FERRY'S SUNK.", "TOW THE RANGER'S CANOE TO THE FAR BANK.",
@@ -98,7 +98,7 @@ static func _all() -> Dictionary:
 				_gap(300, "water"), _f(560), _finish()],
 		},
 		"temple": {
-			"title": "TEMPLE SHORTCUT", "biome": "jungle@night", "fuel": 100.0, "riders": 4,
+			"title": "TEMPLE SHORTCUT", "biome": "jungle@night", "fuel": 65.0, "riders": 4,
 			"requests": [{"who": "GRANDMA", "want": "no_flips", "tip": 1200}],
 			"blurb": "Dark, steep, and Grandma says NO FLIPS.",
 			"radio": ["SHORTCUT THROUGH THE OLD TEMPLE ROAD.", "IT'S DARK. HEADLIGHTS ON.",
@@ -110,7 +110,7 @@ static func _all() -> Dictionary:
 				_ramp(160, 55), _gap(300, "swamp", 30), _landing(360, 90), _f(520), _finish()],
 		},
 		"mudslide": {
-			"title": "MUDSLIDE", "biome": "jungle", "weather": "rain", "fuel": 110.0, "riders": 4,
+			"title": "MUDSLIDE", "biome": "jungle", "weather": "rain", "fuel": 72.0, "riders": 4,
 			"chase": {"start": -950.0, "speed": 175.0, "accel": 5.0},
 			"blurb": "The hill is coming down behind you. DRIVE.",
 			"radio": ["DISPATCH TO 99, THE HILLSIDE IS MOVING!", "MUDSLIDE RIGHT BEHIND YOU.",
@@ -122,7 +122,7 @@ static func _all() -> Dictionary:
 				{"t": "mud", "len": 220}, _f(320), _ramp(160, 55), _gap(290, "chasm"), _f(600), _finish()],
 		},
 		"home": {
-			"title": "THE LAST STOP", "biome": "city@night", "fuel": 110.0, "riders": 2, "trailer": "cake",
+			"title": "THE LAST STOP", "biome": "city@night", "fuel": 72.0, "riders": 2, "trailer": "cake",
 			"blurb": "Tow the cake. Pick up the guests. Land soft.",
 			"radio": ["LAST RUN, 99. THEY'RE THROWING YOU A PARTY.", "TOW THE CAKE. GRAB TWO GUESTS ON HILL ROAD.",
 				"LAND SOFT. IT'S A VERY TALL CAKE."],

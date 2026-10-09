@@ -82,10 +82,10 @@ const LAYER_DEBRIS := 4
 @export var brake_decel := 560.0  ## extra scrub (px/s^2) on top of the tires when braking
 @export var max_wheel_spin := 45.0
 @export_group("Rocket")
-@export var rocket_thrust := 950.0
+@export var rocket_thrust := 700.0
 @export var rocket_nose_lift := 900.0  ## low-mounted nozzles lift the nose a little
 @export var fuel_capacity := 100.0
-@export var fuel_burn_rate := 24.0  ## ~40% more burn time than the original 34
+@export var fuel_burn_rate := 48.0
 @export_group("Air control")
 @export var air_torque := 3600.0
 @export var max_air_spin := 2.2
