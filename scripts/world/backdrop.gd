@@ -14,7 +14,7 @@ var base_y := 0.0
 var _sky: Array[Color] = []
 var _layers: Array[Dictionary] = []
 var _stars: Array[Vector3] = []
-var _clouds: Array[Vector3] = []
+var _clouds: Clouds
 var _time := 0.0
 
 
@@ -31,9 +31,7 @@ func _ready() -> void:
 	rng.seed = hash(biome.title)
 	for i in int(120 * biome.stars):
 		_stars.append(Vector3(rng.randf() * LOOP, rng.randf() * 110, rng.randf() * TAU))
-	if biome.title in ["JUNGLE", "MOUNTAINS", "DESERT", "BAY CITY"]:
-		for i in 7:
-			_clouds.append(Vector3(rng.randf() * LOOP, rng.randf_range(20, 90), rng.randf_range(0.6, 1.4)))
+	set_weather("")
 	for i in biome.layers.size():
 		var spec: Dictionary = biome.layers[i]
 		var layer := spec.duplicate()
@@ -53,6 +51,11 @@ func _ready() -> void:
 				layer.islands.append({"x": ix, "y": rng.randf_range(-40, 40), "w": rng.randf_range(24, 70)})
 				ix += rng.randf_range(70, 160)
 		_layers.append(layer)
+
+
+## Rebuilds the clouds for the level's weather ("" = the biome's fair-weather sky).
+func set_weather(kind: String) -> void:
+	_clouds = Clouds.new().setup(biome, kind)
 
 
 func _process(delta: float) -> void:
@@ -86,12 +89,13 @@ func _draw_sky(horizon: float, cam_x: float) -> void:
 		if i + 1 < _sky.size():  # dithered seam between bands
 			for dx in range(0, int(SIZE.x), 2):
 				draw_rect(Rect2(dx + int(y0) % 2, y0 + band - 1, 1, 1), _sky[i + 1])
-	for s in _stars:
+	var clear := not _clouds.overcast  # an overcast deck hides the stars and aurora
+	for s in _stars if clear else []:
 		var sx := fposmod(s.x - cam_x * 0.01, LOOP)
 		if sx < SIZE.x and s.y < horizon - 40:
 			var tw := 0.5 + 0.5 * sin(_time * 2.0 + s.z)
 			draw_rect(Rect2(sx, s.y, 1, 1), Color(1, 0.96, 0.9, 0.3 + tw * 0.7))
-	if biome.aurora:
+	if biome.aurora and clear:
 		for x in range(0, int(SIZE.x), 2):
 			var wave := sin(x * 0.02 + _time * 0.6) * 14 + sin(x * 0.051 - _time * 0.4) * 8
 			var top := 30 + wave
@@ -119,16 +123,7 @@ func _draw_sky(horizon: float, cam_x: float) -> void:
 				draw_rect(Rect2(x, y, 3, 18 + k * 4), col)
 	if biome.get("earth", false):
 		_draw_earth(Vector2(360, 58), 20.0)
-	for cl in _clouds:
-		var x := fposmod(cl.x - cam_x * 0.02 + _time * 4.0 * cl.z, LOOP + 120) - 60
-		if x < SIZE.x + 60:
-			var col := Color(1, 1, 1, 0.16)
-			for k in 4:
-				draw_rect(Rect2(x + k * 9 * cl.z, cl.y - (k % 2) * 4, 22 * cl.z, 7), col)
-	if biome.title == "VOLCANO":  # smoke-dark sky blotches drifting
-		for i in 5:
-			var x := fposmod(i * 211.0 + _time * 6.0, LOOP) - 100
-			draw_rect(Rect2(x, 20 + i * 11, 160, 10), Color(0.1, 0.02, 0.02, 0.25))
+	_clouds.draw(self, horizon, cam_x, _time, SIZE.x)
 
 
 func _draw_earth(c: Vector2, r: float) -> void:

@@ -104,6 +104,7 @@ func set_weather(kind: String) -> void:
 		return
 	var layer := CanvasLayer.new()
 	layer.layer = 3
+	backdrop.set_weather(kind)
 	weather = Weather.new().setup(kind, terrain, tint)
 	weather.bus = bus
 	layer.add_child(weather)
