@@ -4,7 +4,7 @@ Launch a rugged rocket-powered school bus off ramps, fire the rocket to clear th
 
 **Play:** https://pwshfan1980h.github.io/rocket-bus/
 
-**Keys:** D / → drive · A / ← brake/reverse · Space hard brake · Shift (or W / ↑) rocket · H horn · R retry · Esc pause · F1 (or ?) help
+**Keys:** D / → drive · A / ← brake/reverse · Space hard brake · Shift (or W / ↑) rocket · H horn · - / = zoom · R retry · Esc pause · F1 (or ?) help
 
 **Arcade:** all 25 maps across 7 worlds, start to finish. Stick a front flip for the full fanfare, keep every
 rider aboard (three bonks and they walk), and race the ghost of your best attempt when you retry.

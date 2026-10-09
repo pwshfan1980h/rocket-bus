@@ -13,6 +13,9 @@ var music_on := true
 var sfx_on := true
 var gore_on := true
 var seen_intro := false
+## How much of the world the camera shows: 1.0 = the original framing, 0.5 = twice as wide.
+const VIEW_ZOOMS := [1.0, 0.8, 0.67, 0.5, 0.4]
+var view_zoom := 0.67
 ## Last checkpoint reached this session: {level, x, fuel, clock, landings, cleared}.
 var checkpoint := {}
 ## The story run in progress (roguelike: memory only, never saved). Empty = none.
@@ -39,6 +42,7 @@ func _ready() -> void:
 		music_on = cfg.get_value("settings", "music", true)
 		sfx_on = cfg.get_value("settings", "sfx", true)
 		gore_on = cfg.get_value("settings", "gore", true)
+		view_zoom = cfg.get_value("settings", "view_zoom", view_zoom)
 	apply_audio()
 
 
@@ -50,7 +54,19 @@ func save() -> void:
 	cfg.set_value("settings", "music", music_on)
 	cfg.set_value("settings", "sfx", sfx_on)
 	cfg.set_value("settings", "gore", gore_on)
+	cfg.set_value("settings", "view_zoom", view_zoom)
 	cfg.save(PATH)
+
+
+## Steps to the next wider (dir < 0) or closer (dir > 0) framing; returns the new one.
+func step_zoom(dir: int) -> float:
+	var i := 0
+	for k in VIEW_ZOOMS.size():  # nearest preset to the current value
+		if absf(VIEW_ZOOMS[k] - view_zoom) < absf(VIEW_ZOOMS[i] - view_zoom):
+			i = k
+	view_zoom = VIEW_ZOOMS[clampi(i - dir, 0, VIEW_ZOOMS.size() - 1)]
+	save()
+	return view_zoom
 
 
 func apply_audio() -> void:

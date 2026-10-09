@@ -60,7 +60,7 @@ func _target_zoom() -> float:
 		else:
 			height_t = clampf((ground - body.global_position.y - 40.0) / 160.0, 0.0, 1.0)
 	var t := clampf(speed_t * 0.75 + height_t * 0.5, 0.0, 1.0)
-	return lerpf(ZOOM_NEAR, ZOOM_FAR, ease(t, 0.8))
+	return lerpf(ZOOM_NEAR, ZOOM_FAR, ease(t, 0.8)) * GameState.view_zoom
 
 
 func _goal() -> Vector2:

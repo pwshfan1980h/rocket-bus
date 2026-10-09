@@ -9,6 +9,8 @@ const BINDINGS := {
 	"reset": [KEY_R],
 	"horn": [KEY_H],
 	"pause": [KEY_ESCAPE, KEY_P],
+	"zoom_in": [KEY_EQUAL, KEY_KP_ADD],
+	"zoom_out": [KEY_MINUS, KEY_KP_SUBTRACT],
 }
 
 

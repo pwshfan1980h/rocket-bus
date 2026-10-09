@@ -305,6 +305,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		Transition.go("res://scenes/level.tscn")
 	elif event.is_action_pressed("pause") and state == State.PLAY:
 		_toggle_pause()
+	elif event.is_action_pressed("zoom_in") or event.is_action_pressed("zoom_out"):
+		var z := GameState.step_zoom(1 if event.is_action_pressed("zoom_in") else -1)
+		_hint("VIEW %d%%   ( - / = )" % roundi(100.0 / z))
 
 
 # --- Events -------------------------------------------------------------------
@@ -527,7 +530,7 @@ func _win(comet := false) -> void:
 		# The computer takes the wheel and drives off-screen while the camera pulls back.
 		bus.ai_input = {"right": 0.9, "fire": false}
 		world.camera.target = null
-		world.camera.zoom_override = 0.72
+		world.camera.zoom_override = 0.72 * GameState.view_zoom
 		Audio.music("music_results")
 		_big_center("BUS STOP!", Color("#ffcc26"))
 	await get_tree().create_timer(3.4 if comet else 2.6).timeout
@@ -574,7 +577,7 @@ func _start_comet() -> void:
 		b.collision_mask = 0
 	bus.ai_input = {"right": 0.0, "fire": false}
 	bus._set_flames(true)
-	world.camera.zoom_override = 0.6
+	world.camera.zoom_override = 0.6 * GameState.view_zoom
 	Audio.music("music_comet", 0.2)
 	Audio.play("comet_whoosh", 0.0)
 	bus.passengers.driver_say("WE'RE NOT COMING BACK!", true, true)
@@ -769,6 +772,7 @@ func _build_hud() -> void:
 	_rush.draw.connect(_draw_rush)
 	layer.add_child(_rush)
 	var minimap := Minimap.new().setup(world, bus)
+	minimap.story = _story
 	minimap.position = Vector2(156, 5)
 	layer.add_child(minimap)
 	_hud.riders = _label(layer, "", Vector2(8, 32), 8, Color("#ff9ad2"), 2)

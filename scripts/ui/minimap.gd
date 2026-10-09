@@ -1,8 +1,9 @@
 class_name Minimap
 extends Control
 ## "Road ahead" strip for the HUD: the terrain profile from a little behind the bus
-## to far ahead, with gaps (coloured by kind), ramps, fuel cans,
-## the finish flag and the bus itself. Gives foresight at high speed.
+## to far ahead, with gaps (coloured by kind), ramps, mud and ice, fuel cans,
+## checkpoints, bus stops, a loose trailer, the mudslide, the finish flag and the
+## bus itself. Gives foresight at high speed.
 
 const W := 200.0
 const H := 26.0
@@ -16,6 +17,8 @@ const GAP_COLORS := {
 var terrain: Terrain
 var world: World
 var bus: Bus
+var story: StoryRun  ## optional: stops, trailer and mudslide on story legs
+var _time := 0.0
 
 
 func setup(w: World, b: Bus) -> Minimap:
@@ -27,7 +30,8 @@ func setup(w: World, b: Bus) -> Minimap:
 	return self
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_time += delta
 	queue_redraw()
 
 
@@ -71,6 +75,45 @@ func _draw() -> void:
 			prev = p
 		x += 10.0
 
+	for z in terrain.zones:  # mud / ice as a coloured strip under the road
+		var a := maxf(z.x0, x0)
+		var b := minf(z.x1, x0 + span)
+		if a < b:
+			var c := Color("#8a5a2a") if z.kind == "mud" else Color("#9ad0ff")
+			var zx := a
+			while zx < b:
+				var p: Vector2 = to_screen.call(zx, terrain.surface_y(zx))
+				draw_rect(Rect2(p.x, p.y + 1, 2, 2), c)
+				zx += 10.0
+	for cx in terrain.checkpoints:  # small green flags
+		if cx > x0 and cx < x0 + span:
+			var p: Vector2 = to_screen.call(cx, terrain.surface_y(cx))
+			draw_rect(Rect2(p.x, p.y - 6, 1, 6), Color("#d8d8e0"))
+			draw_rect(Rect2(p.x + 1, p.y - 6, 3, 2), Color("#5aff6a"))
+	var next_open := true  # the first stop still to serve blinks
+	for s in terrain.stops:
+		var mx: float = (s.x0 + s.x1) / 2.0
+		var blink: bool = next_open and not s.done
+		next_open = next_open and s.done
+		if mx < x0 or mx > x0 + span:
+			continue
+		var p: Vector2 = to_screen.call(mx, terrain.surface_y(mx))
+		if s.done:
+			draw_rect(Rect2(p.x - 3, p.y - 1, 7, 2), Color(1, 0.82, 0.23, 0.3))
+			continue
+		draw_rect(Rect2(p.x - 3, p.y - 1, 7, 2), Color.WHITE if blink and fmod(_time, 0.6) < 0.3 else Color("#ffd23a"))
+		draw_rect(Rect2(p.x - 3, p.y - 8, 7, 2), Color("#3a7af0"))  # the shelter roof
+		draw_rect(Rect2(p.x - 3, p.y - 6, 1, 5), Color("#9a9aa8"))
+		draw_rect(Rect2(p.x + 3, p.y - 6, 1, 5), Color("#9a9aa8"))
+	if story and story.chase and story.chase.running and story.chase.front > x0:  # the mudslide
+		var fx: float = minf(story.chase.front, x0 + span)
+		draw_rect(Rect2(0, 0, (fx - x0) * sx, H), Color(0.45, 0.28, 0.12, 0.55))
+		draw_rect(Rect2((fx - x0) * sx - 1, 0, 2, H), Color("#8a5a2a"))
+	if story and story.trailer and not story.trailer.attached and not story.trailer.lost \
+			and is_instance_valid(story.trailer.body):  # a dropped trailer: go back for it
+		var tp: Vector2 = to_screen.call(story.trailer.body.global_position.x, story.trailer.body.global_position.y + 20)
+		var c := Color("#ff9a2e") if fmod(_time, 0.5) < 0.25 else Color.WHITE
+		draw_rect(Rect2(tp.x - 2, tp.y - 3, 4, 3), c)
 	for r in terrain.ramps:  # ramp lips as bright ticks
 		if r.lip_x > x0 and r.lip_x < x0 + span:
 			var p: Vector2 = to_screen.call(r.lip_x, r.top_y)
