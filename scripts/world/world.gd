@@ -34,6 +34,8 @@ func build(biome: String, segments: Array) -> World:
 	backdrop = Backdrop.new().setup(biome, terrain.surface_y(0))
 	sky.add_child(backdrop)
 	add_child(sky)
+	if b.get("wall", false):  # behind the road: drawn before the terrain
+		add_child(HighwayWall.new().setup(terrain))
 	add_child(terrain)
 	props = Props.new().setup(terrain)
 	add_child(props)

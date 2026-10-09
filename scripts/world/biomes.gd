@@ -28,6 +28,7 @@ const ALL := {
 			"surface": {"style": 0, "top": "#8a82a0", "road": "#3a3448", "road_d": "#2a2436", "fleck": "#5a5470",
 				"bed": "#968496", "bed_d": "#6a5a6e", "road_depth": 7, "bed_depth": 4, "curb": true}},
 		"decor": ["streetlight", "hydrant", "bin", "streetlight", "newsbox"], "fg": "lamppost",
+		"wall": true,  # a tagged concrete sound wall behind the road
 		"life": ["birds", "perched", "dust"],
 		"music": "music_menu", "ambience": "amb_city_loop", "friction": 1.0,
 		"chatter": ["NICE VIEW!", "IS THIS MY STOP?", "SMELLS LIKE TACOS"],
