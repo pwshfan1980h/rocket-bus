@@ -133,6 +133,8 @@ func _draw() -> void:
 			"streetlight": _streetlight(p)
 			"palm": _palm(p, s, f)
 			"hydrant": _hydrant(p)
+			"bin": _bin(p)
+			"newsbox": _newsbox(p)
 			"warn": _warn(p)
 			"checkpoint": _checkpoint(p)
 			"alienplant": _alienplant(p, s)
@@ -278,6 +280,20 @@ func _hydrant(p: Vector2) -> void:
 	_r(p.x - 2, p.y - 8, 5, 8, Color("#d8303a"))
 	_r(p.x - 3, p.y - 5, 7, 2, Color("#d8303a"))
 	_r(p.x - 1, p.y - 9, 3, 1, Color("#f05060"))
+
+
+func _bin(p: Vector2) -> void:
+	_r(p.x - 3, p.y - 9, 7, 9, Color("#3a5a4a"))
+	_r(p.x - 4, p.y - 10, 9, 2, Color("#4a6e5a"))
+	_r(p.x - 1, p.y - 7, 1, 6, Color("#2a4236"))
+	_r(p.x + 2, p.y - 7, 1, 6, Color("#2a4236"))
+
+
+func _newsbox(p: Vector2) -> void:
+	_r(p.x - 4, p.y - 12, 8, 10, Color("#2a5ad8"))
+	_r(p.x - 3, p.y - 10, 6, 4, Color("#c8d8f0"))
+	_r(p.x - 3, p.y - 2, 1, 2, Color("#2e2a3a"))
+	_r(p.x + 2, p.y - 2, 1, 2, Color("#2e2a3a"))
 
 
 func _alienplant(p: Vector2, s: float) -> void:

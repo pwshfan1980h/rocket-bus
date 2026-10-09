@@ -6,6 +6,7 @@ extends Node2D
 const SIZE := Vector2(480, 270)
 const LOOP := 960.0
 const COL := 2  # column width of the silhouette height maps
+const NEONS: Array[Color] = [Color(1, 0.27, 0.67), Color(0.24, 0.94, 0.86), Color(1, 0.86, 0.24), Color(0.6, 0.4, 1.0)]
 
 var biome: Dictionary
 ## World y of the "normal" road height; the horizon drifts as the camera climbs.
@@ -41,7 +42,7 @@ func _ready() -> void:
 		layer.heights = _heights(spec.kind, spec.h, rng)
 		layer.index = i
 		if spec.kind == "city":
-			layer.buildings = _city(rng, spec.h)
+			_bake_city(layer, rng)
 		if spec.kind == "volcanoes":
 			layer.craters = _pending_craters
 		if spec.kind == "islands":
@@ -69,7 +70,7 @@ func _draw() -> void:
 	var horizon := roundf(clampf(176.0 - (center.y - base_y + 40.0) * 0.12, 120.0, 230.0))
 	_draw_sky(horizon, center.x)
 	for layer in _layers:
-		var base: float = horizon + layer.index * 10.0
+		var base: float = horizon + layer.get("dy", layer.index * 10.0)
 		var scroll := fposmod(center.x * layer.parallax, LOOP)
 		if layer.kind == "city":
 			_draw_city(layer, base, scroll)
@@ -189,19 +190,25 @@ func _draw_volcano_fx(layer: Dictionary, base: float, scroll: float) -> void:
 			draw_rect(Rect2(x - size / 2 + t * 30, top - t * 90, size, size * 0.6), Color(0.15, 0.08, 0.08, 0.5 * (1 - t)))
 
 
+## A skyline layer: the baked texture (tiled across the loop), then the blinking
+## aviation lights on the antennas. A haze of city glow
+## settles over its foot so the farther rows read as farther.
 func _draw_city(layer: Dictionary, base: float, scroll: float) -> void:
-	for b in layer.buildings:
+	var tex: ImageTexture = layer.tex
+	var top := base - tex.get_height() + 1
+	for k in 2:
+		var ox := -scroll + k * LOOP
+		if ox < SIZE.x and ox + LOOP > 0:
+			draw_texture(tex, Vector2(ox, top))
+	for b in layer.blinks:
 		var x := fposmod(b.x - scroll, LOOP)
-		if x > SIZE.x:
-			continue
-		var top: float = base - b.h
-		draw_rect(Rect2(x, top, b.w, b.h + 1), layer.color)
-		for p in b.lit:
-			draw_rect(Rect2(x + p.x, top + p.y, 2, 1), Color(1, 0.82, 0.47))
-		if b.neon >= 0:
-			var neon: Color = [Color(1, 0.27, 0.67), Color(0.24, 0.94, 0.86), Color(1, 0.86, 0.24)][b.neon]
-			neon.a = 0.75 + 0.25 * sin(_time * 5.0 + b.x)
-			draw_rect(Rect2(x + 2, top - 3, b.w - 4, 2), neon)
+		if x < SIZE.x and fmod(_time + b.x * 0.013, 1.6) < 0.5:
+			draw_rect(Rect2(x, top + b.y, 1, 1), Color(1, 0.2, 0.25))
+	if layer.has("haze"):
+		var haze := Color(layer.haze)
+		for k in 6:
+			haze.a = 0.05 + k * 0.035
+			draw_rect(Rect2(0, base - 36 + k * 6, SIZE.x, 6), haze)
 
 
 # --- Height map generators ----------------------------------------------------
@@ -298,17 +305,79 @@ func _heights(kind: String, max_h: float, rng: RandomNumberGenerator) -> PackedF
 var _pending_craters := []
 
 
-func _city(rng: RandomNumberGenerator, max_h: float) -> Array:
-	var out := []
-	var x := 0.0
+## Bakes one skyline row into a LOOP-wide texture. Spec keys: h (tallest),
+## wmin/wmax (building widths), windows (lit share), detail: 0 far towers,
+## 1 + antennas and setbacks, 2 + rooftop tanks and neon, 3 street front with shops.
+## Buildings overlap so rows look packed, each with a 1px glow-lit edge.
+func _bake_city(layer: Dictionary, rng: RandomNumberGenerator) -> void:
+	var max_h: int = layer.h
+	var detail: int = layer.get("detail", 2)
+	var img := Image.create(int(LOOP), max_h + 14, false, Image.FORMAT_RGBA8)
+	var floor_y := img.get_height()
+	var body: Color = layer.color
+	var rim := body.lightened(0.12)
+	var warm := Color(1, 0.82, 0.47)
+	var cool := Color(0.62, 0.86, 1.0)
+	var win_mix: float = [0.55, 0.35, 0.15, 0.0][detail]  # far windows fade toward the wall colour
+	var blinks: Array[Vector2] = []
+	var x := 0
 	while x < LOOP:
-		var w := rng.randi_range(14, 34)
-		var h := rng.randi_range(24, int(max_h))
-		var lit := []
-		for wy in range(4, h - 3, 5):
-			for wx in range(3, w - 3, 4):
-				if rng.randf() < 0.3:
-					lit.append(Vector2(wx, wy))
-		out.append({"x": x, "w": w, "h": h, "lit": lit, "neon": -1 if rng.randf() < 0.6 else rng.randi() % 3})
-		x += w + rng.randi_range(1, 6)
-	return out
+		var w: int = rng.randi_range(layer.wmin, layer.wmax)
+		var h: int = rng.randi_range(int(max_h * 0.35), max_h)
+		if detail < 3 and rng.randf() < 0.12:
+			h = max_h  # a landmark tower
+		if detail == 3:
+			h = rng.randi_range(int(max_h * 0.55), max_h)
+		var top := floor_y - h
+		var shape := rng.randi() % 4 if detail >= 1 else rng.randi() % 2
+		_fill(img, x, top, w, h, body)
+		match shape:
+			1:  # setback crown
+				var sw := int(w * 0.6)
+				var sh := rng.randi_range(4, 10)
+				_fill(img, x + (w - sw) / 2, top - sh, sw, sh, body)
+				top -= sh
+			2:  # spire and antenna
+				var ax := x + w / 2
+				var ah := rng.randi_range(5, 12)
+				_fill(img, ax - 1, top - 3, 3, 3, body)
+				_fill(img, ax, top - 3 - ah, 1, ah, body)
+				blinks.append(Vector2(ax, max_h + 14 - h - 3 - ah))
+			3:  # stepped roof
+				for k in 3:
+					_fill(img, x + k * 2, top - (k + 1) * 2, w - k * 4, 2, body)
+		_fill(img, x, floor_y - h, 1, h, rim)  # glow on the edge facing the light
+		# Windows: a grid, some floors burning bright (offices), the rest scattered.
+		var hue := warm if rng.randf() < 0.7 else cool
+		var step_x := 3 if detail == 0 else 4
+		var step_y := 3 if detail == 0 else 4
+		var ww := 1 if detail == 0 else 2
+		var shop := 10 if detail == 3 else 0
+		for wy in range(floor_y - h + 3, floor_y - 2 - shop, step_y):
+			var office := rng.randf() < 0.08
+			for wx in range(x + 2, x + w - 2, step_x):
+				if office or rng.randf() < layer.windows:
+					var c := hue.lerp(body, win_mix + rng.randf() * 0.25)
+					_fill(img, wx, wy, ww, 1, c)
+		if detail >= 2 and rng.randf() < 0.15 and w > 14:  # rooftop water tank
+			var tx := x + rng.randi_range(2, w - 10)
+			_fill(img, tx + 1, floor_y - h - 3, 1, 3, body)
+			_fill(img, tx + 6, floor_y - h - 3, 1, 3, body)
+			_fill(img, tx, floor_y - h - 9, 8, 6, body)
+		if detail == 3:  # shop fronts: lit window, awning, sometimes a neon sign
+			_fill(img, x + 2, floor_y - 7, w - 4, 5, warm.lerp(Color.WHITE, 0.2))
+			_fill(img, x + 1, floor_y - 9, w - 2, 2, NEONS[rng.randi() % NEONS.size()].darkened(0.3))
+			if rng.randf() < 0.5:
+				_fill(img, x + 3, floor_y - 15 - rng.randi_range(0, 8), mini(w - 6, 14), 2, NEONS.pick_random())
+		elif detail == 2 and rng.randf() < 0.3:  # a vertical sign down the side
+			_fill(img, x + w - 3, floor_y - h + 6, 2, rng.randi_range(8, 16), NEONS.pick_random())
+		x += int(w * rng.randf_range(0.65, 1.0)) + (rng.randi_range(0, 2) if detail < 3 else 0)
+	layer.tex = ImageTexture.create_from_image(img)
+	# Only antenna tips still against the sky (not swallowed by a later, taller building).
+	layer.blinks = blinks.filter(func(b): return b.y < 1 or img.get_pixelv(Vector2i(b) - Vector2i(0, 1)).a == 0.0)
+
+
+func _fill(img: Image, x: int, y: int, w: int, h: int, c: Color) -> void:
+	var r := Rect2i(x, y, w, h).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
+	if r.has_area():
+		img.fill_rect(r, c)

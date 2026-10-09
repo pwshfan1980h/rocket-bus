@@ -9,18 +9,25 @@ class_name Biomes
 const ALL := {
 	"city": {
 		"title": "BAY CITY",
-		"sky": ["#221246", "#3c1a64", "#682480", "#aa3484", "#e25676", "#fc8860", "#ffb868"],
-		"sun": {"r": 30, "top": "#ffec8c", "bottom": "#ff5a78", "stripes": true, "x": 340},
-		"stars": 0.6, "aurora": false,
-		"modulate": Color(0.68, 0.6, 0.84),
-		"layers": [
-			{"kind": "hills", "parallax": 0.05, "color": "#762e6c", "h": 34},
-			{"kind": "city", "parallax": 0.15, "color": "#3e1a54", "h": 76},
+		# Late evening downtown: deep night above, the city's own glow along the horizon.
+		"sky": ["#06041a", "#0c0828", "#160c38", "#24104a", "#3a1658", "#5a1e62", "#7e2c66"],
+		"sun": {"r": 12, "top": "#f4f0ff", "bottom": "#d0c8f0", "stripes": false, "x": 110, "moon": true},
+		"stars": 0.35, "aurora": false,
+		"modulate": Color(0.52, 0.48, 0.74),
+		"layers": [  # skyline rows, far to near; dy = base offset from the horizon
+			{"kind": "city", "parallax": 0.02, "color": "#2a1446", "h": 128, "dy": -8, "detail": 0,
+				"windows": 0.10, "wmin": 8, "wmax": 20, "haze": "#5a1e62"},
+			{"kind": "city", "parallax": 0.06, "color": "#1e0e36", "h": 108, "dy": -4, "detail": 1,
+				"windows": 0.16, "wmin": 10, "wmax": 26, "haze": "#4a1a5a"},
+			{"kind": "city", "parallax": 0.13, "color": "#140828", "h": 88, "dy": 0, "detail": 2,
+				"windows": 0.24, "wmin": 14, "wmax": 34, "haze": "#361250"},
+			{"kind": "city", "parallax": 0.24, "color": "#0c0518", "h": 54, "dy": 6, "detail": 3,
+				"windows": 0.3, "wmin": 22, "wmax": 44},
 		],
 		"ground": {"line": "#ffd03c", "body": ["#3e2238", "#46283e", "#3a1e34"],
 			"surface": {"style": 0, "top": "#8a82a0", "road": "#3a3448", "road_d": "#2a2436", "fleck": "#5a5470",
 				"bed": "#968496", "bed_d": "#6a5a6e", "road_depth": 7, "bed_depth": 4, "curb": true}},
-		"decor": ["streetlight", "palm", "hydrant"], "fg": "lamppost",
+		"decor": ["streetlight", "hydrant", "bin", "streetlight", "newsbox"], "fg": "lamppost",
 		"life": ["birds", "perched", "dust"],
 		"music": "music_menu", "ambience": "amb_city_loop", "friction": 1.0,
 		"chatter": ["NICE VIEW!", "IS THIS MY STOP?", "SMELLS LIKE TACOS"],

@@ -12,7 +12,7 @@ const BAYER := [0.0, 0.5, 0.75, 0.25]  # 2x2 ordered dither
 
 ## Fair-weather cloud counts per biome: [near, far, cirrus]. Missing = clear sky.
 const FAIR := {
-	"BAY CITY": [4, 6, 3], "DESERT": [2, 3, 5], "JUNGLE": [6, 8, 0], "MOUNTAINS": [4, 6, 2],
+	"BAY CITY": [3, 5, 0], "DESERT": [2, 3, 5], "JUNGLE": [6, 8, 0], "MOUNTAINS": [4, 6, 2],
 }
 
 var style := ""  ## "fair" | "storm" | "snow" | "dust" | "smoke" | ""
@@ -118,9 +118,12 @@ static func _palette(kind: String, sky: Array[Color]) -> Array[Color]:
 			return _hex(["#8a5a3a", "#a8704a", "#c48e5e", "#dcae7a"], sky[-1], 0.15)
 		"smoke":
 			return _hex(["#1a0e10", "#2e1816", "#5e2a18", "#b44e1c"], sky[1], 0.1)
-	return [  # fair weather: shadows from the upper sky, tops from the glow at the horizon
-		sky[2].lerp(Color.WHITE, 0.22), sky[3].lerp(Color.WHITE, 0.45),
-		sky[-2].lerp(Color.WHITE, 0.62), sky[-1].lerp(Color.WHITE, 0.82),
+	# Fair weather: shadows from the upper sky, tops from the glow at the horizon.
+	# Dark skies keep their clouds dark (lit only by the city or the moon).
+	var k := clampf(sky[-1].get_luminance() * 1.8, 0.2, 1.0)
+	return [
+		sky[2].lerp(Color.WHITE, 0.22 * k), sky[3].lerp(Color.WHITE, 0.45 * k),
+		sky[-2].lerp(Color.WHITE, 0.62 * k), sky[-1].lerp(Color.WHITE, 0.82 * k),
 	]
 
 
