@@ -478,7 +478,7 @@ func _tutorial(x: float) -> void:
 	var ramp: Dictionary = world.terrain.ramps[0]
 	if _hint_step == 0 and x > ramp.x0 - 320:
 		_hint_step = 1
-		_hint("RAMP AHEAD!  HOLD SPACE FOR ROCKET")
+		_hint("RAMP AHEAD!  HOLD SHIFT FOR ROCKET")
 	elif _hint_step == 1 and bus.airborne and x > ramp.lip_x:
 		_hint_step = 2
 		_hint("IN THE AIR:  A / D  TO TILT.  LAND FLAT!")

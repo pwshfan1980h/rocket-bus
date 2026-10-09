@@ -264,7 +264,7 @@ func bot_input() -> Dictionary:
 		if dist < -400.0:
 			continue
 		if _inside(s) and absf(dist) < (s.x1 - s.x0) / 2.0 - 60.0:
-			return {"right": -1.0, "fire": false}  # hold the brake
+			return {"right": 0.0, "fire": false, "brake": true}
 		var want := clampf(dist * 0.7, -120.0, 320.0)  # crawl up to the middle of the box
 		var v := bus.get_speed()
 		return {"right": 1.0 if v < want - 10.0 else (-1.0 if v > want + 10.0 else 0.0), "fire": false}

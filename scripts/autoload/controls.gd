@@ -4,7 +4,8 @@ extends Node
 const BINDINGS := {
 	"move_right": [KEY_D, KEY_RIGHT],  # throttle on the ground, nose-down in the air
 	"move_left": [KEY_A, KEY_LEFT],  # brake/reverse on the ground, nose-up in the air
-	"rocket": [KEY_SPACE],
+	"rocket": [KEY_SHIFT, KEY_W, KEY_UP],  # either Shift; W/Up spare Windows players Sticky Keys
+	"brake": [KEY_SPACE],  # hard brake, never reverses; holds the bus still on hills
 	"reset": [KEY_R],
 	"horn": [KEY_H],
 	"pause": [KEY_ESCAPE, KEY_P],

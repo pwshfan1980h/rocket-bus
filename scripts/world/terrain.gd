@@ -24,6 +24,8 @@ const SURFACE_DEPTH := 18.0  ## road + roadbed band drawn over the soil
 const RUNWAY := 700.0  # road behind the start line (the bus drives in from here)
 const DEPTH := 2600.0  ## ground goes far down so falling never shows sky under the level
 const LIQUIDS := ["water", "swamp", "ice", "lava"]
+const STOP_PAD := 4.0  ## the stopping area is raised this much above the road
+const STOP_PAD_RAMP := 28.0
 
 var biome: Dictionary
 var islands: Array[Dictionary] = []
@@ -114,7 +116,10 @@ func build(segments: Array, biome_name: String) -> Terrain:
 				var y0 := _y
 				var x0 := _x
 				var dy: float = seg.get("dy", 0.0)
-				_add_curve(seg.len, func(t): return y0 + dy * t)
+				var length: float = seg.len
+				# A low concrete pad: the road rises STOP_PAD px over a short ramp at each end.
+				_add_curve(length, func(t): return y0 + dy * t - STOP_PAD * smoothstep(0.0, 1.0,
+						minf(t, 1.0 - t) * length / STOP_PAD_RAMP))
 				_road_y = _y
 				stops.append({"x0": x0, "x1": _x, "board": seg.get("board", 0), "drop": seg.get("drop", 0),
 					"name": seg.get("name", "BUS STOP"), "done": false})

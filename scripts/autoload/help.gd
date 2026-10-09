@@ -7,13 +7,14 @@ extends CanvasLayer
 const PAGES := [
 	{"id": "basics", "title": "DRIVING", "lines": [
 		"D / RIGHT: THROTTLE.",
-		"A / LEFT: BRAKE. KEEP HOLDING WHEN STOPPED TO REVERSE.",
+		"SPACE: HARD BRAKE. NEVER REVERSES, AND HOLDS YOU STILL ON HILLS.",
+		"A / LEFT: SOFT BRAKE. KEEP HOLDING WHEN STOPPED TO REVERSE.",
 		"THE BUS IS HEAVY. SPEED CARRIES YOU UP HILLS AND OFF RAMPS.",
 		"MUD SLOWS YOU. ICE SLIDES: BRAKE BEFORE IT, NOT ON IT.",
 		"H HORN.  R RETRY.  ESC PAUSE.",
 	]},
 	{"id": "rocket", "title": "ROCKET + JUMPS", "lines": [
-		"HOLD SPACE TO FIRE. IT PUSHES ALONG THE NOSE: THE ANGLE YOU FIRE AT IS WHERE YOU GO.",
+		"HOLD SHIFT (OR W / UP) TO FIRE. IT PUSHES ALONG THE NOSE: THE ANGLE YOU FIRE AT IS WHERE YOU GO.",
 		"HIT THE RAMP AT FULL SPEED. START BURNING ON THE RAMP.",
 		"KEEP BURNING UNTIL THE FAR SIDE IS SAFE, THEN LET GO.",
 		"WATCH THE FUEL BAR. RED CANS REFILL IT.",
@@ -38,8 +39,8 @@ const PAGES := [
 	]},
 	{"id": "stops", "title": "STORY: BUS STOPS", "lines": [
 		"1. EASE OFF EARLY. A HEAVY BUS NEEDS ROOM.",
-		"2. GET BOTH WHEELS INSIDE THE YELLOW BOX.",
-		"3. HOLD A. IN THE BOX THE BRAKE LOCKS THE WHEELS: NO ROLLING, NO REVERSING.",
+		"2. GET BOTH WHEELS UP ON THE PAD, INSIDE THE YELLOW BOX.",
+		"3. HOLD SPACE. THE BRAKE LOCKS THE WHEELS: NO ROLLING, NO REVERSING.",
 		"4. KEEP HOLDING UNTIL THE RING FILLS AND THE DOORS OPEN. ON HILLS, DON'T LET GO EARLY.",
 		"OVERSHOT? STOP OUTSIDE THE BOX AND HOLD A TO BACK IN.",
 		"SKIP A STOP AND THE LEG FAILS AT THE FINISH.",
@@ -214,6 +215,7 @@ func _draw_art() -> void:
 			_bus(Vector2(x, 96 - (x * 26.0 / 116.0) - 10), -0.22)
 			_key(Vector2(14, 10), "D", true)
 			_key(Vector2(38, 10), "A", false)
+			_key(Vector2(62, 10), "SPACE", false)
 		"rocket":
 			a.draw_line(Vector2(4, 100), Vector2(40, 100), ROAD, 2.0)
 			a.draw_polyline(PackedVector2Array([Vector2(40, 100), Vector2(60, 96), Vector2(70, 88)]), Color("#b87a3e"), 2.0)
@@ -222,7 +224,7 @@ func _draw_art() -> void:
 			_bus(p, -0.35 + k * 0.5)
 			if k < 0.5:
 				a.draw_rect(Rect2(p + Vector2(-22, 2), Vector2(8, 3)), Color("#ffb040"))
-			_key(Vector2(10, 10), "SPACE", true)
+			_key(Vector2(10, 10), "SHIFT", true)
 		"air":
 			a.draw_line(Vector2(4, 104), Vector2(120, 104), ROAD, 2.0)
 			var y := 40 + fmod(t * 20.0, 50.0)
@@ -252,7 +254,7 @@ func _draw_art() -> void:
 			if k >= 1.0:
 				var fill := clampf((fmod(t, 3.0) - 1.2) / 1.2, 0.0, 1.0)
 				a.draw_arc(Vector2(70, 50), 7, -PI / 2, -PI / 2 + TAU * fill, 20, YEL, 2.0)
-			_key(Vector2(10, 10), "A", k >= 0.6)
+			_key(Vector2(10, 10), "SPACE", k >= 0.6)
 		"towing":
 			a.draw_line(Vector2(4, 100), Vector2(120, 100), ROAD, 2.0)
 			var k := fmod(t, 3.0) / 3.0

@@ -79,6 +79,7 @@ const LAYER_DEBRIS := 4
 @export_group("Drive")
 @export var drive_torque := 2600.0
 @export var brake_torque := 3200.0
+@export var brake_decel := 560.0  ## extra scrub (px/s^2) on top of the tires when braking
 @export var max_wheel_spin := 45.0
 @export_group("Rocket")
 @export var rocket_thrust := 950.0
@@ -108,6 +109,7 @@ var last_landing := {}
 var airborne := false
 var throttle := 0.0  ## current -1..1 drive input
 var wants_fire := false
+var braking := false  ## SPACE held (or scripted): hard brake, never reverses
 var controls_enabled := true
 ## Road surface under the wheels, set by the level: "", "mud" or "ice".
 var surface := "":
@@ -135,6 +137,7 @@ var _rocket_fx: Node2D
 var _headlight: PointLight2D
 var _cabin_lights: Array[PointLight2D] = []
 var _sign_light: PointLight2D
+var _brake_light: PointLight2D
 var _rocket_debris: RigidBody2D
 var _debris_burn := 0.0
 var _flame_clock := 0.0
@@ -392,7 +395,8 @@ func _build_lights() -> void:
 	_headlight.offset = Vector2(64, 0)
 	chassis.add_child(_headlight)
 	chassis.add_child(_light(TEX_RADIAL, Vector2(55, 10), Color(1, 0.95, 0.8), 1.0, 0.3))
-	chassis.add_child(_light(TEX_RADIAL, Vector2(-40, 15), Color(1, 0.15, 0.1), 0.9, 0.4))
+	_brake_light = _light(TEX_RADIAL, Vector2(-40, 15), Color(1, 0.15, 0.1), 0.9, 0.4)
+	chassis.add_child(_brake_light)
 	for x in [-20.0, 16.0]:
 		var cabin := _light(TEX_RADIAL, Vector2(x, -2), Color(1, 0.82, 0.55), 1.3, 1.5)
 		cabin.range_item_cull_mask = 2  # only the interior + riders
@@ -412,13 +416,17 @@ func _physics_process(delta: float) -> void:
 			else Input.get_axis("move_left", "move_right")
 	var fire: bool = ai_input.get("fire", false) if not ai_input.is_empty() \
 			else Input.is_action_pressed("rocket")
+	var brake: bool = ai_input.get("brake", false) if not ai_input.is_empty() \
+			else Input.is_action_pressed("brake")
 	if not controls_enabled:
 		right = 0.0
 		fire = false
+		brake = false
 	elif ai_input.is_empty() and Input.is_action_just_pressed("horn"):
 		honk()
 	throttle = right
 	wants_fire = fire
+	braking = brake
 
 	var wheel_contacts := 0
 	for w in wheels:
@@ -431,7 +439,9 @@ func _physics_process(delta: float) -> void:
 
 	if headwind != 0.0:
 		chassis.apply_central_force(Vector2(-headwind, 0) * chassis.mass)
-	if wheel_contacts > 0:
+	if wheel_contacts > 0 and brake:
+		_brake(true)
+	elif wheel_contacts > 0:
 		_drive(right)
 	else:
 		_air_control(right)
@@ -447,6 +457,8 @@ func _physics_process(delta: float) -> void:
 	_bounce_rack(proper, delta)
 	_animate_dog()
 	_update_skid(right, wheel_contacts > 0)
+	var brake_on := not airborne and (brake or (right < 0.0 and get_speed() > 25.0))
+	_brake_light.energy = move_toward(_brake_light.energy, 2.4 if brake_on else 0.9, 12.0 * delta)
 	if wheel_contacts == 0:
 		passengers.on_airborne(_air_time, rocket_firing)
 	_prev_vel = chassis.linear_velocity
@@ -466,7 +478,8 @@ func _drive(right: float) -> void:
 				w.angular_velocity = 0.0
 				chassis.linear_velocity *= 0.92
 			elif speed > 25.0:
-				w.apply_torque(-brake_torque * grip * signf(w.angular_velocity))
+				_brake(false)
+				return
 			elif w.angular_velocity > -max_wheel_spin * 0.4:
 				w.apply_torque(drive_torque * right * 0.6)
 
@@ -515,6 +528,24 @@ func _mud_spray() -> void:
 		for b in blobs:
 			splats.draw_rect(b, Color("#5a3a1e")))
 	_skin.add_child(splats)
+
+
+## Wheel brakes plus a scrub force at road level, so the nose dips as the bus
+## sheds speed. `hold`: near a standstill, lock the wheels and pin the bus, even on a hill.
+func _brake(hold: bool) -> void:
+	var grip: float = {"mud": 0.55, "ice": 0.35}.get(surface, 1.0)
+	var speed := get_speed()
+	if hold and absf(speed) < 40.0:
+		for w in wheels:
+			w.angular_velocity = 0.0
+		var step := brake_decel * grip * get_physics_process_delta_time()
+		chassis.linear_velocity.x = move_toward(chassis.linear_velocity.x, 0.0, step)
+		return
+	for w in wheels:
+		w.apply_torque(-brake_torque * 1.4 * grip * signf(w.angular_velocity))
+	var fwd := chassis.global_transform.x
+	var road := chassis.global_transform.basis_xform(Vector2(center_of_mass.x, 9.0))  # a little below the COM: a slight nose dip
+	chassis.apply_force(-fwd * signf(speed) * brake_decel * grip * chassis.mass, road)
 
 
 func _hold_brakes() -> void:
@@ -840,7 +871,7 @@ func _build_tire_smoke() -> void:
 
 ## Hard braking at speed: tyres scream and smoke.
 func _update_skid(right: float, grounded: bool) -> void:
-	var skid := grounded and right < -0.5 and get_speed() > 140.0
+	var skid := grounded and (right < -0.5 or braking) and get_speed() > 140.0
 	if skid and not _skidding:
 		Audio.play("skid", -8.0, randf_range(0.9, 1.1))
 	_skidding = skid

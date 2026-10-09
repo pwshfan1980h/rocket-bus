@@ -54,9 +54,9 @@ static func _all() -> Dictionary:
 	return {
 		"depot": {
 			"title": "FIRST SHIFT", "biome": "city@dawn", "fuel": 100.0, "riders": 1,
-			"blurb": "Stop in the yellow box. Hold BRAKE while they board.",
+			"blurb": "Stop in the yellow box. Hold SPACE while they board.",
 			"radio": ["DISPATCH TO BUS 99. MORNING.", "PICK UP AT THE DEPOT, THEN HILL STREET.",
-				"STOP IN THE BOX AND HOLD THE BRAKE. NO ROLLING."],
+				"STOP IN THE BOX AND HOLD SPACE. NO ROLLING."],
 			"next": ["water", "canyon"],
 			"segments": [_f(500), _stop(240, 0, 1, 0, "DEPOT"), _f(460), _ramp(150, 50), _gap(250, "chasm"),
 				_f(460), _slope(320, -40), _f(120), _stop(260, -34, 2, 0, "HILL ST"), _slope(220, -16), _f(400),

@@ -4,14 +4,14 @@ Launch a rugged rocket-powered school bus off ramps, fire the rocket to clear th
 
 **Play:** https://pwshfan1980h.github.io/rocket-bus/
 
-**Keys:** D / → drive · A / ← brake · Space rocket · H horn · R retry · Esc pause · F1 (or ?) help
+**Keys:** D / → drive · A / ← brake/reverse · Space hard brake · Shift (or W / ↑) rocket · H horn · R retry · Esc pause · F1 (or ?) help
 
 **Arcade:** all 25 maps across 7 worlds, start to finish. Stick a front flip for the full fanfare, keep every
 rider aboard (three bonks and they walk), and race the ghost of your best attempt when you retry.
 
 **Story:** a roguelike run on 7 lives with no saves, start to finish. Seven hand-built legs across the
 city, the desert and the jungle, with two forks. The jobs:
-- Stop in the yellow box and hold the brake while people board, even on steep hills.
+- Pull up at the shelter, stop on the pad in the yellow box and hold Space while people board, even on steep hills.
 - Tow a trailer. A rough landing snaps the hitch, so back up to the trailer to hook it again.
 - Outrun a mudslide.
 - Do what the passengers ask (or don't do what they forbid).
