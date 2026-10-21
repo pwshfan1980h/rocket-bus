@@ -122,6 +122,7 @@ func _ready() -> void:
 		_style.merge(_resume.get("style", {}), true)
 		_flip_points = _resume.get("flip_points", 0)
 		_retries = _resume.get("retries", 0) + 1
+		_low_fuel = _resume.get("low_fuel", 1.0)
 		GameState.checkpoint.retries = _retries
 	world.set_weather(def.get("weather", ""))
 	bus.headwind = world.weather.headwind if world.weather else 0.0
@@ -205,7 +206,7 @@ func _physics_process(delta: float) -> void:
 		_comet_step(delta)
 	if state != State.PLAY or not is_instance_valid(bus) or bus.chassis == null:
 		return
-	_low_fuel = minf(_low_fuel, bus.fuel / bus.fuel_capacity)
+	_low_fuel = minf(_low_fuel, bus.fuel_ratio())
 	clock += delta
 	var c := bus.chassis
 	var x := c.global_position.x
@@ -344,7 +345,7 @@ func _reach_checkpoint(cx: float) -> void:
 	_cp_passed = cx
 	GameState.checkpoint = {"level": _level_key(), "x": cx, "fuel": bus.fuel, "clock": clock,
 		"landings": landings.duplicate(), "cleared": cleared, "retries": _retries, "style": _style.duplicate(),
-		"flip_points": _flip_points}
+		"flip_points": _flip_points, "low_fuel": _low_fuel}
 	Audio.play("star", -4.0)
 	_let_off_leavers()
 	Fx.float_text(bus.chassis.global_position + Vector2(0, -60), "CHECKPOINT!", Color("#3cf0dc"), 16)
