@@ -56,6 +56,9 @@ const DRIVER_LINES := {
 var riders: Array[Dictionary] = []
 var driver: Dictionary
 var _driver_cd := 0.0
+## Spoken lines show as text at most once per TALK_GAP seconds; the rest are speech-bubble icons.
+const TALK_GAP := 9.0
+var _talk_cd := 0.0
 var _filtered_accel := Vector2.ZERO
 var _air_quipped := false
 
@@ -91,6 +94,7 @@ func update_sway(proper_accel_local: Vector2, gravity: float, delta: float) -> v
 	var target := -(_filtered_accel + Vector2(0, gravity)) * SWAY_GAIN
 	target = target.clamp(-SWAY_LIMIT, SWAY_LIMIT)
 	_driver_cd -= delta
+	_talk_cd -= delta
 	for r in riders:
 		r.vel += (target - r.offset) * r.stiff * delta - r.vel * 14.0 * delta
 		r.offset = (r.offset + r.vel * delta).clamp(-SWAY_LIMIT * 1.5, SWAY_LIMIT * 1.5)
@@ -145,7 +149,8 @@ func chatter(line: String, voice := "voice_blip") -> void:
 		return
 	var r: Dictionary = pool.pick_random()
 	Audio.play(voice, -8.0, 0.8 + r.row * 0.12, 0.05)
-	Fx.float_text(r.sprite.global_position + Vector2(4, -2), line, SHIRTS[r.row].lightened(0.25))
+	_speak(r, line, SHIRTS[r.row].lightened(0.25),
+			{"voice_happy": "heart", "voice_hurt": "!"}.get(voice, "dots"))
 	_set_mood(r, Mood.CHEER if voice == "voice_happy" else Mood.SHOCK if voice == "voice_hurt" else Mood.IDLE, 0.8)
 
 
@@ -161,14 +166,11 @@ func eject(into: Node, bus_velocity: Vector2) -> void:
 		var doll := Ragdoll.new()
 		doll.build(into, at, s.global_rotation, launch, r.row, SHIRTS[r.row])
 		s.hide()
-		if randf() < 0.6:
+		if randf() < 0.6:  # screams only; the flying ragdolls say the rest
 			delay += 0.12
-			var text: String = QUIPS.crash.pick_random()
-			var color: Color = SHIRTS[r.row].lightened(0.2)
 			get_tree().create_timer(delay).timeout.connect(func():
 				if is_instance_valid(doll.torso):
-					Audio.play("voice_scream", -12.0, 0.9 + r.row * 0.1, 0.05)
-					Fx.float_text(doll.torso.global_position + Vector2(0, -10), text, color))
+					Audio.play("voice_scream", -12.0, 0.9 + r.row * 0.1, 0.05))
 
 
 func _set_mood(r: Dictionary, mood: Mood, duration := 0.0) -> void:
@@ -182,7 +184,7 @@ func driver_say(line: String, shout := false, force := false) -> void:
 		return
 	_driver_cd = 1.2
 	Audio.play("voice_driver_shout" if shout else "voice_driver", -5.0, randf_range(0.95, 1.05))
-	Fx.float_text(driver.sprite.global_position + Vector2(4, -4), line, DRIVER_COLOR, 8, false, 1.5)
+	_speak(driver, line, DRIVER_COLOR, "!" if shout else "note", 1.5)
 	_set_mood(driver, Mood.SHOCK if shout else Mood.CHEER, 0.8)
 
 
@@ -275,11 +277,21 @@ func _quip_some(count: int, kind: String) -> void:
 		get_tree().create_timer(0.12 + i * 0.22).timeout.connect(_quip.bind(r, lines[i % lines.size()], kind))
 
 
-func _quip(r: Dictionary, line: String, kind: String) -> void:
+func _quip(r: Dictionary, _line: String, kind: String) -> void:
 	if not is_instance_valid(r.sprite) or not r.sprite.visible:
 		return
 	var voice: String = {"perfect": "voice_happy", "good": "voice_happy", "hard": "voice_hurt",
 			"air": "voice_happy"}.get(kind, "voice_blip")
 	Audio.play(voice, -8.0, 0.8 + r.row * 0.12, 0.05)
-	var at: Vector2 = r.sprite.global_position + Vector2(4, -2)
-	Fx.float_text(at, line, SHIRTS[r.row].lightened(0.25))
+	# Landing and airtime reactions: the riders' faces and bounces carry it, plus a bubble.
+	Fx.bubble(r.sprite, {"perfect": "star", "good": "note", "hard": "!", "air": "!"}.get(kind, "dots"),
+			SHIRTS[r.row].darkened(0.2))
+
+
+## Shows a spoken line as text if nobody has spoken lately, otherwise as a bubble icon.
+func _speak(r: Dictionary, line: String, color: Color, symbol: String, life := 1.3) -> void:
+	if _talk_cd <= 0.0:
+		_talk_cd = TALK_GAP
+		Fx.float_text(r.sprite.global_position + Vector2(4, -4), line, color, 8, false, life)
+	else:
+		Fx.bubble(r.sprite, symbol, color.darkened(0.45))

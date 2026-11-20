@@ -144,13 +144,46 @@ func _draw() -> void:
 		draw_rect(Rect2(px - 1, py - 41, 4, 5), Color.WHITE)  # a little bus pictogram
 		draw_rect(Rect2(px - 2, py - 37, 6, 1), Color.WHITE)
 		if not done:
-			var label := "%s%s" % ["BOARD %d " % s.board if s.board > 0 else "", "DROP %d" % s.drop if s.drop > 0 else ""]
-			if label == "":
-				label = "STOP"
 			var cx: float = (s.x0 + s.x1) / 2.0
-			var bob := absf(sin(_time * 3.0)) * 2.0
-			draw_string(PixelFont.get_font(), Vector2(cx - 50, _base_y(s, cx) - 88 - bob), label.strip_edges(),
-					HORIZONTAL_ALIGNMENT_CENTER, 100, 8, Color("#ffd23a"))
+			var bob := roundf(absf(sin(_time * 3.0)) * 3.0)
+			_draw_riders_sign(Vector2(cx, _base_y(s, cx) - 96 - bob), s.board, s.drop)
+
+
+## Who gets on and off here, as pictograms instead of words: a green up-arrow and a
+## little person per boarding rider, a pink down-arrow and a person per drop-off.
+func _draw_riders_sign(at: Vector2, board: int, drop: int) -> void:
+	var groups := []
+	if board > 0:
+		groups.append([board, Color("#7dff6a"), true])
+	if drop > 0:
+		groups.append([drop, Color("#ff7ac8"), false])
+	if groups.is_empty():
+		groups.append([0, Color("#ffd23a"), true])
+	var width := 0.0
+	for g in groups:
+		width += 12 + g[0] * 9 + 8
+	var x := roundf(at.x - width / 2.0)
+	var y := roundf(at.y)
+	var ink := Color("#1a1420")
+	for g in groups:
+		var col: Color = g[1]
+		# Arrow (outlined): shaft plus head, pointing up to board, down to drop.
+		var up: bool = g[2]
+		draw_rect(Rect2(x + 2, y + 2, 6, 14), ink)
+		draw_rect(Rect2(x + 3, y + 3, 4, 12), col)
+		for k in 5:
+			var hy := y + (k if up else 13 - k) - 1
+			draw_rect(Rect2(x + 4 - k - 1, hy, 2 * k + 4, 2), ink)
+			draw_rect(Rect2(x + 4 - k, hy, 2 * k + 2, 1), col)
+		x += 12
+		for i in g[0]:  # one little person per rider
+			draw_rect(Rect2(x, y + 1, 8, 16), ink)
+			draw_rect(Rect2(x + 2, y + 2, 4, 4), col)
+			draw_rect(Rect2(x + 1, y + 7, 6, 6), col)
+			draw_rect(Rect2(x + 2, y + 13, 1, 3), col)
+			draw_rect(Rect2(x + 5, y + 13, 1, 3), col)
+			x += 9
+		x += 8
 
 
 ## The low concrete pad in the road (it's real: the terrain rises under it) with

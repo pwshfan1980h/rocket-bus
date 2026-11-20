@@ -174,14 +174,10 @@ func _intro() -> void:
 	var blurb := _label(_hud.layer, def.blurb, Vector2(0, 114), 8, Color.WHITE, 2)
 	blurb.size.x = 480
 	blurb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var gaps_l := _label(_hud.layer, "%d GAP%s" % [world.terrain.gaps.size(), "S" if world.terrain.gaps.size() > 1 else ""],
-			Vector2(0, 128), 8, Color("#3cf0dc"), 2)
-	gaps_l.size.x = 480
-	gaps_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var wait := 0.3 if _skip_intro else 1.6
+	var wait := 0.3 if _skip_intro else 1.6  # (the gap count lives in the HUD)
 	await get_tree().create_timer(wait).timeout
 	if not is_inside_tree(): return
-	for n in [card, blurb, gaps_l]:
+	for n in [card, blurb]:
 		n.queue_free()
 	if not _skip_intro and _resume.is_empty():
 		for c in ["3", "2", "1"]:
@@ -800,6 +796,8 @@ func _build_hud() -> void:
 	_hud.hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label(layer, "R RETRY   ESC PAUSE   H HORN   F1 HELP", Vector2(0, 256), 8, Color(1, 1, 1, 0.45), 0).size.x = 480
 	layer.get_child(-1).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var keys: Label = layer.get_child(-1)  # controls reminder: fades once the run is under way
+	keys.create_tween().tween_property(keys, "modulate:a", 0.0, 1.5).set_delay(12.0)
 
 
 func _update_riders() -> void:
