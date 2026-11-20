@@ -124,8 +124,8 @@ func _on_hit(_other: Node, part: RigidBody2D) -> void:
 		Audio.play_at("voice_hurt", part.global_position, -12.0, 0.2)
 	if Gore.enabled():
 		Gore.of(torso).stain_below(part.global_position, randf_range(3, 7))
-	if randf() < 0.45:
-		Fx.float_text(part.global_position + Vector2(0, -8), BusPassengers.QUIPS.bonk.pick_random(), Color("#ffe14a"))
+	if randf() < 0.3:  # a bonk is a sound and a star, not a sentence
+		Fx.bubble(part, "star", Color("#c08a10"))
 
 
 ## Rip a part off the torso: both ends spurt, and a lost head ends the screaming.
@@ -153,4 +153,4 @@ func _tear(part: RigidBody2D) -> void:
 	if part == head:
 		_screaming = false
 		head.angular_velocity = randf_range(-30, 30)  # heads roll
-		Fx.float_text(at + Vector2(0, -10), ["OFF WITH HIS HEAD!", "HEADS UP!", "NOGGIN!"].pick_random(), Color("#ff3b4e"))
+		Fx.bubble(head, "skull", Color("#c0283a"))

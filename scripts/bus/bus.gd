@@ -20,6 +20,7 @@ const TEX_GLASS := preload("res://assets/sprites/bus_glass.png")
 const TEX_WHEEL := preload("res://assets/sprites/wheel.png")
 const TEX_ROCKET := preload("res://assets/sprites/rocket.png")
 const TEX_FLAME := preload("res://assets/sprites/flame.png")
+const BUS_FX := preload("res://scripts/bus/bus_fx.gd")
 const TEX_AXLE := preload("res://assets/sprites/axle.png")
 const TEX_RADIAL := preload("res://assets/sprites/light_radial.png")
 const TEX_CONE := preload("res://assets/sprites/light_cone.png")
@@ -557,7 +558,7 @@ func _hold_brakes() -> void:
 
 func honk() -> void:
 	audio.honk()
-	Fx.float_text(chassis.global_position + Vector2(62, -10), "HONK!", Color("#ffe14a"))
+	add_child(BUS_FX.new().honk(chassis.to_global(Vector2(66, -2)), chassis.global_transform.x))
 
 
 ## The bus has dropped into a gap: "chasm", "water", "swamp", "ice" or "lava".
@@ -676,6 +677,7 @@ func _rocket(on: bool, delta: float) -> void:
 		_set_flames(on)
 		if on:
 			passengers.event("rocket")
+			add_child(BUS_FX.new().ignition(chassis.to_global(Vector2(-66, 11)), -chassis.global_transform.x))
 	_animate_flames(delta)
 
 
@@ -749,10 +751,9 @@ func _announce(grade: String) -> void:
 		"perfect":
 			Fx.float_text(at, "PERFECT!!", Color.WHITE, 16, true, 1.7)
 		"good":
-			Fx.float_text(at, ["NICE LANDING!", "SMOOTH!", "BUS-TASTIC!"].pick_random(),
-					Color("#7dff6a"), 16)
+			pass  # a green ring on the ground says it (see _impact_fx); no text
 		"hard":
-			Fx.float_text(at, "HARD LANDING", Color("#ff9a2e"), 16)
+			Fx.float_text(at, "HARD LANDING", Color("#ff9a2e"), 8)
 			Fx.shake(3.0)
 
 
@@ -790,6 +791,12 @@ func _impact_fx(impact: float, grade: String) -> void:
 		add_child(p)
 		p.emitting = true
 		get_tree().create_timer(p.lifetime + 0.3).timeout.connect(p.queue_free)
+	var mid := (wheels[0].global_position + wheels[1].global_position) / 2.0 + Vector2(0, WHEEL_RADIUS - 1)
+	add_child(BUS_FX.new().shockwave(mid, power, cols))
+	var grade_cols: Array = {"perfect": [Color("#ffffff"), Color("#fff07a")], "good": [Color("#7dff6a"), Color("#3ac050")],
+			"hard": [Color("#ff9a2e"), Color("#c04a1a")]}.get(grade, [])
+	if not grade_cols.is_empty():  # the landing grade, as a coloured ring
+		add_child(BUS_FX.new().shockwave(mid + Vector2(0, -2), 0.6 if grade == "good" else 1.0, grade_cols))
 	var squash := 0.06 + 0.08 * clampf(impact / hard_impact, 0.0, 1.0)
 	if grade == "hard":
 		squash += 0.04
@@ -834,7 +841,7 @@ func _eject_dog(vel: Vector2) -> void:
 	add_child(body)
 	get_tree().create_timer(0.3).timeout.connect(func():
 		if is_instance_valid(body):
-			Fx.float_text(body.global_position + Vector2(0, -10), "YIP!", Color("#ffd28a")))
+			Fx.bubble(body, "!", Color("#a0602a")))
 
 
 ## Luggage rides a stiff spring on the rack: hops on landings, settles back.

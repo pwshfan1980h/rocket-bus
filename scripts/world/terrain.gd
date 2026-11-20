@@ -242,6 +242,7 @@ func _build_nodes() -> void:
 	for i in 4:
 		mat.set_shader_parameter("c%d" % i, Color(g.body[i % g.body.size()]))
 	mat.set_shader_parameter("depth_start", road_bottom + 40.0)
+	_bind_soil(mat, g)
 	var surface_mat := _surface_material(g.surface)
 	_surface_mat = surface_mat
 	var phys := PhysicsMaterial.new()
@@ -255,11 +256,17 @@ func _build_nodes() -> void:
 			bottom = road_bottom + 40.0
 			var span: float = isl.x1 - isl.x0
 			var steps := maxi(4, int(span / 30.0))
+			var dx := span / steps
 			for k in range(steps, -1, -1):  # rocky underside, deepest in the middle
 				var t := float(k) / steps
 				var x: float = lerpf(isl.x0, isl.x1, t)
 				var depth := 20.0 + (1.0 - absf(t - 0.5) * 2.0) * minf(220.0, span * 0.25) + float((k * 37) % 17)
-				poly.append(Vector2(x, _line_y(ground, x) + depth))
+				# Hang below the lowest road point nearby, so the underside never cuts up
+				# through a steep stretch (e.g. the climb to a ramp lip at the island's end).
+				var low := _line_y(ground, x)
+				for s in [-dx, -dx * 0.5, dx * 0.5, dx]:
+					low = maxf(low, _line_y(ground, clampf(x + s, isl.x0, isl.x1)))
+				poly.append(Vector2(x, low + depth))
 		else:
 			poly.append(Vector2(isl.x1, bottom))
 			poly.append(Vector2(isl.x0, bottom))
@@ -277,6 +284,33 @@ func _build_nodes() -> void:
 	overlay.name = "Overlay"
 	overlay.draw.connect(_draw_overlay.bind(overlay))
 	add_child(overlay)
+
+
+## Feeds terrain.gdshader the biome's soil look and a 1px strip of road heights
+## (y * 16 in R+G, island flag in B) so strata and buried details follow the road.
+func _bind_soil(mat: ShaderMaterial, g: Dictionary) -> void:
+	mat.set_shader_parameter("soil", int(g.get("soil", 0)))
+	mat.set_shader_parameter("rock", Color(g.get("rock", g.body[0])))
+	mat.set_shader_parameter("accent", Color(g.get("accent", "#ffffff")))
+	if islands.is_empty():
+		return
+	var x0: float = islands[0].x0
+	var span: float = islands[-1].x1 - x0
+	var step := maxf(4.0, ceilf(span / 8000.0))
+	var w := int(span / step) + 2
+	var base := road_top - 64.0
+	var img := Image.create(w, 1, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	for isl in islands:
+		var line := _ground_line(isl)
+		for i in range(int(ceilf((isl.x0 - x0) / step)), int(floorf((isl.x1 - x0) / step)) + 1):
+			var v := clampi(int((_line_y(line, x0 + i * step) - base) * 16.0), 0, 65535)
+			img.set_pixel(i, 0, Color8(v >> 8, v & 255, 255, 255))
+	mat.set_shader_parameter("surf", ImageTexture.create_from_image(img))
+	mat.set_shader_parameter("has_surf", true)
+	mat.set_shader_parameter("surf_x0", x0)
+	mat.set_shader_parameter("surf_step", step)
+	mat.set_shader_parameter("surf_base", base)
 
 
 ## Surface with ramps flattened back to road level (what the dirt body follows).

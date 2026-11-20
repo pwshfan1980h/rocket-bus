@@ -1,0 +1,32 @@
+BOT 1-1 FIRST DAY        WON  grade=A spd=3 tech=2 fuel=41 low=47% landings=["good", "good", "good"] time=23.0 par=33
+BOT 1-2 OASIS HOP        WON  grade=B spd=3 tech=1 fuel=35 low=41% landings=["good", "good", "hard", "good", "good", "good"] time=27.6 par=41
+BOT 1-3 DOUBLE TROUBLE   WON  grade=A spd=3 tech=2 fuel=64 low=47% landings=["hard", "good", "good", "good", "good", "good", "perfect", "good", "good"] time=35.6 par=53
+BOT 1-4 MESA LEAP        WON  grade=B spd=3 tech=1 fuel=79 low=56% landings=["good", "hard", "good", "good", "good", "good"] time=38.2 par=57
+BOT 2-1 RIVER RUN        WON  grade=B spd=3 tech=1 fuel=52 low=46% landings=["hard", "good", "good", "good", "hard", "hard"] time=32.3 par=50
+BOT 2-2 SWAMP THING      WON  grade=B spd=3 tech=1 fuel=63 low=50% landings=["good", "perfect", "good", "good", "hard", "good", "hard", "hard"] time=41.7 par=64
+BOT 2-3 CANOPY CHASE     WON  grade=B spd=3 tech=1 fuel=69 low=45% landings=["good", "good", "good", "good", "good", "hard", "good", "hard", "hard"] time=48.8 par=70
+BOT 2-4 TEMPLE DROP      WON  grade=C spd=3 tech=0 fuel=73 low=44% landings=["hard", "good", "good", "good", "hard", "hard", "hard", "hard"] time=49.5 par=76
+BOT 3-1 SWITCHBACK       WON  grade=B spd=3 tech=1 fuel=26 low=47% landings=["hard", "good", "hard", "good", "hard", "good"] time=36.0 par=57
+BOT 3-2 GOAT PATH        WON  grade=B spd=3 tech=1 fuel=33 low=31% landings=["good", "good", "hard", "good", "good", "hard", "hard", "good", "good"] time=44.9 par=70
+BOT 3-3 EAGLE'S NEST     WON  grade=B spd=3 tech=1 fuel=67 low=46% landings=["good", "good", "hard", "good", "good", "good", "good", "hard"] time=48.1 par=74
+BOT 3-4 SUMMIT RUN       WON  grade=B spd=3 tech=1 fuel=32 low=43% landings=["hard", "hard", "good", "good", "good", "hard", "hard", "good", "hard", "good", "good"] time=58.2 par=90
+BOT 4-1 FIRST FROST      WON  grade=B spd=3 tech=1 fuel=45 low=46% landings=["good", "good", "hard", "good", "hard", "hard", "good", "good"] time=39.2 par=60
+BOT 4-2 FROZEN LAKE      WON  grade=B spd=3 tech=1 fuel=70 low=47% landings=["hard", "good", "perfect", "good", "good", "hard", "good", "good", "hard"] time=47.3 par=75
+BOT 4-3 AVALANCHE ALLEY  WON  grade=A spd=3 tech=2 fuel=33 low=44% landings=["perfect", "hard", "hard", "good", "hard", "good", "perfect", "good", "good", "good", "good", "good", "good", "perfect"] time=56.1 par=85
+BOT 4-4 POLAR EXPRESS    WON  grade=A spd=3 tech=2 fuel=37 low=37% landings=["good", "good", "good", "good", "perfect", "hard", "hard", "good", "good", "perfect", "hard", "good", "hard"] time=61.5 par=93
+BOT 5-1 HOT FOOT         WON  grade=B spd=3 tech=1 fuel=44 low=38% landings=["hard", "good", "good", "good", "good", "good", "good", "hard", "hard"] time=46.9 par=74
+BOT 5-2 MAGMA MILE       WON  grade=B spd=3 tech=1 fuel=44 low=40% landings=["good", "good", "good", "good", "good", "good", "perfect", "hard", "hard", "hard", "good", "good", "good", "good"] time=58.2 par=91
+BOT 5-3 ASH CLOUD        WON  grade=A spd=3 tech=2 fuel=45 low=41% landings=["good", "perfect", "hard", "good", "perfect", "hard", "good", "good", "good", "good", "perfect", "hard"] time=53.2 par=83
+BOT 5-4 THE LAST STOP    WON  grade=B spd=3 tech=1 fuel=63 low=50% landings=["hard", "hard", "good", "hard", "good", "good", "good", "hard", "hard", "hard", "good", "good"] time=61.9 par=95
+BOT 6-1 ONE SMALL HOP    WON  grade=S spd=3 tech=3 fuel=32 low=77% landings=["good", "good", "perfect", "perfect", "good", "perfect", "perfect", "good", "good", "good", "perfect", "perfect", "perfect", "perfect", "good"] time=40.4 par=56
+BOT 6-2 CRATER HOPPER    WON  grade=S spd=3 tech=3 fuel=31 low=72% landings=["good", "perfect", "perfect", "good", "good", "perfect", "perfect", "perfect", "perfect", "good", "perfect", "perfect", "perfect", "perfect", "good", "good", "perfect"] time=51.9 par=73
+BOT 6-3 DARK SIDE        WON  grade=S spd=3 tech=3 fuel=30 low=73% landings=["good", "good", "perfect", "perfect", "perfect", "perfect", "good", "good", "perfect", "good", "perfect", "good", "perfect", "good", "good", "perfect", "perfect", "good", "good", "good", "good"] time=58.5 par=83
+BOT 6-4 EARTHRISE        WON  grade=S spd=3 tech=3 fuel=28 low=63% landings=["perfect", "perfect", "perfect", "hard", "perfect", "good", "perfect", "perfect", "perfect", "perfect", "good", "perfect", "good", "good", "perfect", "good", "good", "perfect", "perfect", "hard", "good", "good", "perfect"] time=61.9 par=90
+BOT 7-1 ANOMALOUS RIDE   WON  grade=B spd=3 tech=1 fuel=20 low=51% landings=["hard", "good", "perfect", "hard", "hard", "hard", "good", "hard", "good"] time=55.7 par=81
+BOT STORY CANYON STOPS     WON  grade=B spd=3 tech=1 fuel=37 low=57% landings=["good", "hard", "good"] time=27.5 par=34
+BOT STORY FIRST SHIFT      WON  grade=A spd=3 tech=2 fuel=35 low=55% landings=["good", "good"] time=18.1 par=23
+BOT STORY MUDSLIDE         WON  grade=A spd=3 tech=2 fuel=40 low=56% landings=["good", "good", "good", "good"] time=15.7 par=22
+BOT STORY RIVER CROSSING   FAILED  timeout: stuck at x=3297 speed=0
+BOT STORY TEMPLE SHORTCUT  WON  grade=A spd=3 tech=2 fuel=55 low=73% landings=["good", "perfect", "hard"] time=22.2 par=28
+BOT STORY THE LAST STOP    WON  grade=A spd=3 tech=2 fuel=34 low=48% landings=["good", "good", "perfect", "perfect"] time=19.4 par=30
+BOT STORY WATER RUN        WON  grade=A spd=3 tech=2 fuel=38 low=54% landings=["perfect", "perfect", "hard", "perfect"] time=27.5 par=28

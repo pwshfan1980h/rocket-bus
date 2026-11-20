@@ -1,0 +1,282 @@
+extends SceneTree
+## Throwaway 2.5D mock-up: level 1-1's real terrain extruded into 3D, the real bus
+## sprites as flat cards, a tilted perspective camera, rendered at 480x270 and
+## upscaled with nearest filtering. The existing 2D parallax backdrop sits behind.
+##   godot --path . -s /tmp/rb/tools/mock25d.gd -- --out=/tmp/x.png [--level=0] [--tilt=14] [--fov=32]
+
+const S := 0.01  # metres per 2D pixel
+const DEPTH := 70.0  # road width into the screen, in 2D px
+
+var level := 0
+var tilt := 14.0
+var fov := 32.0
+var out := "/tmp/rb/mock25d.png"
+
+
+func _initialize() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--out="): out = a.substr(6)
+		elif a.begins_with("--level="): level = int(a.substr(8))
+		elif a.begins_with("--tilt="): tilt = float(a.substr(7))
+		elif a.begins_with("--fov="): fov = float(a.substr(6))
+	var def: Dictionary = Levels.get_level(level)
+	var biome := Biomes.get_biome(def.biome)
+	var terrain := Terrain.new().build(def.segments, def.biome)
+	var gap: Dictionary = terrain.gaps[0]
+
+	# 2D backdrop behind everything.
+	var sky := CanvasLayer.new()
+	sky.layer = -10
+	sky.add_child(Backdrop.new().setup(def.biome, terrain.surface_y(0)))
+	root.add_child(sky)
+
+	# 3D world in a low-res viewport.
+	var vp := SubViewport.new()
+	vp.size = Vector2i(480, 270)
+	vp.transparent_bg = true
+	vp.msaa_3d = Viewport.MSAA_DISABLED
+	var view := TextureRect.new()
+	view.texture = vp.get_texture()
+	view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	view.size = Vector2(480, 270)
+	var layer := CanvasLayer.new()
+	layer.add_child(vp)
+	layer.add_child(view)
+	root.add_child(layer)
+
+	var body_mat := _strata_mat(biome)
+	var road_mat := _road_mat(biome)
+	for isl in terrain.islands:
+		if isl.x1 < gap.x0 - 900 or isl.x0 > gap.x1 + 900:
+			continue
+		vp.add_child(_island(isl.pts, road_mat, body_mat))
+	# Far canyon wall at the back of the gap.
+	var wall := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2((gap.x1 - gap.x0) * S, 6.0)
+	wall.mesh = q
+	wall.position = Vector3((gap.x0 + gap.x1) / 2 * S, -gap.lip_y * S - 3.0 - 0.9, -DEPTH / 2 * S)
+	var wm := StandardMaterial3D.new()
+	wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wm.albedo_color = Color(biome.ground.body[1]).darkened(0.6)
+	wall.material_override = wm
+	vp.add_child(wall)
+	# Wooden ramp before the gap, as a solid wedge.
+	for r in terrain.ramps:
+		if absf(r.lip_x - gap.x0) < 2:
+			vp.add_child(_ramp(r))
+
+	# Props: cacti in front of and behind the road.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	for k in 22:
+		var x: float = gap.x0 - 800 + k * 90 + rng.randf_range(-30, 30)
+		var y: float = terrain.surface_y(x)
+		if is_nan(y):
+			continue
+		var z := rng.randf_range(-DEPTH / 2 + 6, -10) if k % 3 else rng.randf_range(14, DEPTH / 2 - 4)
+		vp.add_child(_cactus(Vector3(x * S, -y * S, z * S), rng.randf_range(0.7, 1.3)))
+
+	# The bus, mid-jump over the gap, built from its real sprite layers.
+	var bus_at: Vector2 = Vector2(gap.x0 + 70, gap.lip_y - 70)
+	var bus := Node3D.new()
+	bus.position = Vector3(bus_at.x * S, -bus_at.y * S, 4 * S)
+	bus.rotation.z = deg_to_rad(8)
+	var layers := ["bus_seats", "bus_engine", "bus_upper_r", "bus_upper_f", "bus_lower_r", "bus_lower_f",
+		"bus_roof_r", "bus_roof_f", "bus_hood", "bus_fender_rear", "bus_fender_front", "bus_bumper_f",
+		"bus_bumper_r", "bus_door", "bus_rack", "bus_sign", "bus_glass"]
+	var i := 0
+	for name in ["bus_core"] + layers:
+		var path := "res://assets/sprites/%s.png" % name
+		if not ResourceLoader.exists(path):
+			continue
+		var sp := _card(load(path))
+		sp.position = Vector3(10 * S, 3.5 * S, i * 0.0005)
+		bus.add_child(sp)
+		i += 1
+	var rocket := _card(load("res://assets/sprites/rocket.png"))
+	rocket.position = Vector3(-56 * S, -8 * S, 0.012)
+	bus.add_child(rocket)
+	for wx in [-22.0, 34.0]:  # wheels on both sides: the near pair and a darker far pair
+		for side in [-1, 1]:
+			var w := _card(load("res://assets/sprites/wheel.png"))
+			w.position = Vector3(wx * S, -24 * S, side * 0.12)
+			if side < 0:
+				w.modulate = Color(0.45, 0.45, 0.5)
+			bus.add_child(w)
+	vp.add_child(bus)
+	# Shadow on the far road, under the bus.
+	var shadow := MeshInstance3D.new()
+	var sq := QuadMesh.new()
+	sq.size = Vector2(1.1, 0.5)
+	shadow.mesh = sq
+	shadow.rotation.x = -PI / 2
+	var land_y: float = terrain.surface_y(gap.x1 + 40)
+	shadow.position = Vector3((gap.x1 + 40) * S, -land_y * S + 0.01, 0)
+	var shm := StandardMaterial3D.new()
+	shm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	shm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shm.albedo_color = Color(0, 0, 0, 0.3)
+	shadow.material_override = shm
+	vp.add_child(shadow)
+
+	var cam := Camera3D.new()
+	cam.fov = fov
+	var look := Vector3((bus_at.x + 60) * S, -(bus_at.y + 40) * S, 0)
+	var dist := 7.2
+	cam.position = look + Vector3(0, sin(deg_to_rad(tilt)) * dist, cos(deg_to_rad(tilt)) * dist)
+	vp.add_child(cam)
+	cam.look_at_from_position(cam.position, look)
+	var sun := DirectionalLight3D.new()
+	sun.rotation = Vector3(deg_to_rad(-50), deg_to_rad(-30), 0)
+	vp.add_child(sun)
+
+	for k in 6:
+		await process_frame
+	root.get_viewport().get_texture().get_image().save_png(out)
+	print("saved ", out)
+	quit()
+
+
+func _card(tex: Texture2D) -> Sprite3D:
+	var sp := Sprite3D.new()
+	sp.texture = tex
+	sp.pixel_size = S
+	sp.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sp.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sp.shaded = false
+	return sp
+
+
+func _island(pts: PackedVector2Array, road_mat: Material, body_mat: Material) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var zf := DEPTH / 2 * S
+	var zb := -DEPTH / 2 * S
+	for i in pts.size() - 1:
+		var a := Vector3(pts[i].x * S, -pts[i].y * S, 0)
+		var b := Vector3(pts[i + 1].x * S, -pts[i + 1].y * S, 0)
+		# top
+		_quad(st, a + Vector3(0, 0, zb), b + Vector3(0, 0, zb), b + Vector3(0, 0, zf), a + Vector3(0, 0, zf))
+	var top := MeshInstance3D.new()
+	top.mesh = st.commit()
+	top.material_override = road_mat
+	var st2 := SurfaceTool.new()
+	st2.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var drop := 8.0
+	for i in pts.size() - 1:
+		var a := Vector3(pts[i].x * S, -pts[i].y * S, zf)
+		var b := Vector3(pts[i + 1].x * S, -pts[i + 1].y * S, zf)
+		_quad(st2, a, b, Vector3(b.x, -drop, zf), Vector3(a.x, -drop, zf))
+	for end in [0, pts.size() - 1]:  # cliff faces at the island ends
+		var p := Vector3(pts[end].x * S, -pts[end].y * S, 0)
+		_quad(st2, Vector3(p.x, p.y, zb), Vector3(p.x, p.y, zf), Vector3(p.x, -drop, zf), Vector3(p.x, -drop, zb))
+	var body := MeshInstance3D.new()
+	body.mesh = st2.commit()
+	body.material_override = body_mat
+	top.add_child(body)
+	return top
+
+
+func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+	for v in [a, b, c, a, c, d]:
+		st.add_vertex(v)
+
+
+func _ramp(r: Dictionary) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var zf := DEPTH / 2 * S * 0.6
+	var zb := -zf
+	var n := 12
+	for i in n:
+		var t0 := float(i) / n
+		var t1 := float(i + 1) / n
+		var x0: float = lerpf(r.x0, r.x1, t0) * S
+		var x1: float = lerpf(r.x0, r.x1, t1) * S
+		var y0: float = -(r.base_y - (r.base_y - r.top_y) * Terrain.ramp_profile(t0)) * S
+		var y1: float = -(r.base_y - (r.base_y - r.top_y) * Terrain.ramp_profile(t1)) * S
+		var yb: float = -r.base_y * S
+		_quad(st, Vector3(x0, y0, zb), Vector3(x1, y1, zb), Vector3(x1, y1, zf), Vector3(x0, y0, zf))
+		_quad(st, Vector3(x0, y0, zf), Vector3(x1, y1, zf), Vector3(x1, yb, zf), Vector3(x0, yb, zf))
+	var m := MeshInstance3D.new()
+	m.mesh = st.commit()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color("#b87a3e")
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.material_override = mat
+	return m
+
+
+func _cactus(at: Vector3, s: float) -> Node3D:
+	var n := Node3D.new()
+	n.position = at
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color("#3a8a4a")
+	for part in [[Vector3(0, 0.22, 0) * s, Vector3(0.07, 0.44, 0.07) * s], [Vector3(-0.08, 0.26, 0) * s, Vector3(0.05, 0.14, 0.05) * s],
+			[Vector3(0.08, 0.3, 0) * s, Vector3(0.05, 0.16, 0.05) * s]]:
+		var b := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = part[1]
+		b.mesh = box
+		b.position = part[0]
+		b.material_override = mat
+		n.add_child(b)
+	return n
+
+
+func _road_mat(biome: Dictionary) -> ShaderMaterial:
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, cull_disabled;
+uniform vec4 road : source_color;
+uniform vec4 edge : source_color;
+uniform vec4 line : source_color;
+varying vec3 w;
+void vertex() { w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float px = floor(w.x / 0.01);
+	float pz = floor(w.z / 0.01);
+	vec3 c = road.rgb;
+	if (abs(pz) > 30.0) c = edge.rgb;
+	if (abs(pz) < 1.5 && mod(px, 24.0) < 12.0) c = line.rgb;
+	if (fract(sin(px * 12.9898 + pz * 78.233) * 43758.5453) > 0.93) c *= 0.85;
+	ALBEDO = c;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	m.set_shader_parameter("road", Color(biome.ground.surface.road))
+	m.set_shader_parameter("edge", Color(biome.ground.surface.bed))
+	m.set_shader_parameter("line", Color(biome.ground.line) if biome.ground.line != "" else Color(biome.ground.surface.road))
+	return m
+
+
+func _strata_mat(biome: Dictionary) -> ShaderMaterial:
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, cull_disabled;
+uniform vec4 c0 : source_color;
+uniform vec4 c1 : source_color;
+uniform vec4 c2 : source_color;
+uniform vec4 c3 : source_color;
+varying vec3 w;
+void vertex() { w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 p = floor(vec2(w.x, -w.y) / 0.01);
+	float wob = sin(p.x * 0.045) * 4.0;
+	int i = int(mod(floor((p.y + wob) / 11.0), 4.0));
+	vec3 c = i == 0 ? c0.rgb : i == 1 ? c1.rgb : i == 2 ? c2.rgb : c3.rgb;
+	c *= clamp(1.0 - (-w.y - 0.3) / 3.0, 0.35, 1.0);
+	if (abs(NORMAL.x) > 0.5) c *= 0.7;
+	ALBEDO = c;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	for k in 4:
+		m.set_shader_parameter("c%d" % k, Color(biome.ground.body[k % biome.ground.body.size()]))
+	return m

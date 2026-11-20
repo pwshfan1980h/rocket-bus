@@ -96,6 +96,17 @@ func _draw_sky(horizon: float, cam_x: float) -> void:
 		if sx < SIZE.x and s.y < horizon - 40:
 			var tw := 0.5 + 0.5 * sin(_time * 2.0 + s.z)
 			draw_rect(Rect2(sx, s.y, 1, 1), Color(1, 0.96, 0.9, 0.3 + tw * 0.7))
+	if biome.stars >= 0.6 and clear:  # the odd shooting star
+		var cycle := floorf(_time / 4.5)
+		var t := fmod(_time, 4.5) / 0.7
+		if t < 1.0 and _h(cycle + 0.5) > 0.3:
+			var from := Vector2(60 + _h(cycle) * 360, 12 + _h(cycle + 1.7) * 50)
+			var dir := Vector2(-1.0 if _h(cycle + 2.3) > 0.5 else 1.0, 0.45)
+			var head := from + dir * t * 90.0
+			for k in 10:
+				var a := (1.0 - k / 10.0) * (1.0 - t * t)
+				var pt := head - dir * k * 1.6
+				draw_rect(Rect2(roundf(pt.x), roundf(pt.y), 1, 1), Color(1, 0.97, 0.88, a))
 	if biome.aurora and clear:
 		for x in range(0, int(SIZE.x), 2):
 			var wave := sin(x * 0.02 + _time * 0.6) * 14 + sin(x * 0.051 - _time * 0.4) * 8
@@ -184,10 +195,36 @@ func _draw_volcano_fx(layer: Dictionary, base: float, scroll: float) -> void:
 		var glow := 0.6 + 0.4 * sin(_time * 3.0 + peak.x)
 		draw_rect(Rect2(x - 6, top, 12, 3), Color(1, 0.55, 0.1, glow))
 		draw_rect(Rect2(x - 3, top + 3, 6, 6), Color(1, 0.35, 0.05, glow * 0.7))
+		_draw_lava_flow(layer, base, scroll, x, peak.x)
+		for k in 3:  # lava bombs arcing out of the crater
+			var t := fmod(_time * 0.45 + k * 0.37 + peak.x * 0.01, 1.0)
+			var vx := (_h(peak.x + k) - 0.5) * 50.0
+			var bp := Vector2(x + vx * t, top - 46.0 * t + 52.0 * t * t)
+			draw_rect(Rect2(roundf(bp.x), roundf(bp.y), 2, 2), Color(1, 0.75, 0.2, 1.0 - t * 0.6))
+			draw_rect(Rect2(roundf(bp.x - vx * 0.03), roundf(bp.y + 2), 1, 2), Color(1, 0.4, 0.1, 0.6 * (1.0 - t)))
 		for k in 6:  # smoke plume
 			var t := fmod(_time * 0.25 + k / 6.0, 1.0)
 			var size := 6 + t * 26
 			draw_rect(Rect2(x - size / 2 + t * 30, top - t * 90, size, size * 0.6), Color(0.15, 0.08, 0.08, 0.5 * (1 - t)))
+
+
+## Glowing lava trickling down one flank of a backdrop volcano, hugging its outline.
+func _draw_lava_flow(layer: Dictionary, base: float, scroll: float, x: float, seed_x: float) -> void:
+	var heights: PackedFloat32Array = layer.heights
+	var n := heights.size()
+	var dir := 1.0 if _h(seed_x) > 0.5 else -1.0
+	var length := 26.0 + _h(seed_x + 3.0) * 30.0
+	for k in int(length / 2.0):
+		var sx := x + dir * k * 2.0
+		var h := heights[int(posmod(int((sx + scroll) / COL), n))]
+		var fade := 1.0 - k * 2.0 / length
+		var pulse := 0.65 + 0.35 * sin(_time * 2.5 - k * 0.5 + seed_x)
+		draw_rect(Rect2(roundf(sx), base - h + 1, 2, 3), Color(1, 0.4 + 0.3 * pulse, 0.08, fade * pulse))
+		draw_rect(Rect2(roundf(sx), base - h + 4, 2, 2), Color(0.8, 0.2, 0.05, fade * 0.5))
+
+
+static func _h(v: float) -> float:
+	return fposmod(sin(v * 12.9898) * 43758.5453, 1.0)
 
 
 ## A skyline layer: the baked texture (tiled across the loop), then the blinking
