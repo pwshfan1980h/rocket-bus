@@ -113,7 +113,8 @@ func set_weather(kind: String) -> void:
 	add_child(layer)
 
 
-func start_ambience() -> void:
+## music: a level's or story leg's own track ("music_<name>"); defaults to the world's.
+func start_ambience(music := "") -> void:
 	var b := Biomes.get_biome(biome_name)
-	Audio.music(b.music)
+	Audio.music(music if music != "" else b.music)
 	Audio.ambience(b.ambience)

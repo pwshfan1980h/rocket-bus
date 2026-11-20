@@ -4,7 +4,7 @@ class_name Story
 ## jungle) with two forks. Each leg has a job: pick people up on hills, tow a
 ## trailer, outrun a mudslide, keep the passengers happy.
 ##
-## Leg fields: title, biome, blurb, radio (dispatch lines before the leg), riders
+## Leg fields: title, biome, music (optional track; default is the world's), blurb, radio (dispatch lines before the leg), riders
 ## (aboard at the start), fuel, segments (terrain.gd format), next (leg ids; two =
 ## a fork, none = the end), plus optional trailer (cargo), chase, weather, requests
 ## [{"who", "want": "front_flip" | "no_flips" | "big_air", "tip"}].
@@ -98,7 +98,7 @@ static func _all() -> Dictionary:
 				_gap(300, "water"), _f(560), _finish()],
 		},
 		"temple": {
-			"title": "TEMPLE SHORTCUT", "biome": "jungle@night", "fuel": 65.0, "riders": 4,
+			"title": "TEMPLE SHORTCUT", "biome": "jungle@night", "music": "music_temple", "fuel": 65.0, "riders": 4,
 			"requests": [{"who": "GRANDMA", "want": "no_flips", "tip": 1200}],
 			"blurb": "Dark, steep, and Grandma says NO FLIPS.",
 			"radio": ["SHORTCUT THROUGH THE OLD TEMPLE ROAD.", "IT'S DARK. HEADLIGHTS ON.",
@@ -110,7 +110,7 @@ static func _all() -> Dictionary:
 				_ramp(160, 55), _gap(300, "swamp", 30), _landing(360, 90), _f(520), _finish()],
 		},
 		"mudslide": {
-			"title": "MUDSLIDE", "biome": "jungle", "weather": "rain", "fuel": 72.0, "riders": 4,
+			"title": "MUDSLIDE", "biome": "jungle", "weather": "rain", "music": "music_mudslide", "fuel": 72.0, "riders": 4,
 			"chase": {"start": -950.0, "speed": 175.0, "accel": 5.0},
 			"blurb": "The hill is coming down behind you. DRIVE.",
 			"radio": ["DISPATCH TO 99, THE HILLSIDE IS MOVING!", "MUDSLIDE RIGHT BEHIND YOU.",
@@ -122,7 +122,7 @@ static func _all() -> Dictionary:
 				{"t": "mud", "len": 220}, _f(320), _ramp(160, 55), _gap(290, "chasm"), _f(600), _finish()],
 		},
 		"home": {
-			"title": "THE LAST STOP", "biome": "city@night", "fuel": 72.0, "riders": 2, "trailer": "cake",
+			"title": "THE LAST STOP", "biome": "city@night", "music": "music_city_night", "fuel": 72.0, "riders": 2, "trailer": "cake",
 			"blurb": "Tow the cake. Pick up the guests. Land soft.",
 			"radio": ["LAST RUN, 99. THEY'RE THROWING YOU A PARTY.", "TOW THE CAKE. GRAB TWO GUESTS ON HILL ROAD.",
 				"LAND SOFT. IT'S A VERY TALL CAKE."],

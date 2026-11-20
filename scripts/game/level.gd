@@ -133,7 +133,7 @@ func _ready() -> void:
 	_recording = _resume.is_empty() and not _bot
 	if not _bot:
 		_spawn_ghost()
-	world.start_ambience()
+	world.start_ambience(def.get("music", ""))
 	_build_hud()
 	if _story:
 		_story.build_hud(_hud.layer)

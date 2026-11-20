@@ -20,4 +20,4 @@ Press **F1** anywhere for the field guide. It opens on the page for what you're 
 
 Made with Godot 4.7. Open the folder in Godot and press Play.
 
-Music: Kevin MacLeod (incompetech.com), CC BY 4.0. See [CREDITS.md](CREDITS.md).
+Music and most sound effects: generated with ElevenLabs. See [CREDITS.md](CREDITS.md) and [docs/audio.md](docs/audio.md).

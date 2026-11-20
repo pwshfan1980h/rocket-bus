@@ -22,7 +22,7 @@ func _init(owner_bus: Bus) -> void:
 
 
 func _ready() -> void:
-	_engine = Audio.make_loop("engine_loop", self, -12.0)
+	_engine = Audio.make_loop("engine_loop", self, -8.0)
 	_rocket = Audio.make_loop("rocket_loop", self, -60.0)
 	_wind = Audio.make_loop("wind_loop", self, -60.0)
 	_engine.play()
@@ -48,9 +48,10 @@ func _physics_process(delta: float) -> void:
 	var rev := clampf(spin / bus.max_wheel_spin, 0.0, 1.2)
 	var throttle := absf(bus.throttle)
 	_engine.pitch_scale = lerpf(_engine.pitch_scale, 0.75 + rev * 1.1 + throttle * 0.2, 0.15)
-	_engine.volume_db = lerpf(_engine.volume_db, -15.0 + throttle * 5.0 + rev * 3.0, 0.1)
+	# ElevenLabs takes (tools/gen_elevenlabs.py) sit ~4-5 dB under the old synth loops; made up here.
+	_engine.volume_db = lerpf(_engine.volume_db, -11.0 + throttle * 5.0 + rev * 3.0, 0.1)
 
-	var target_rocket := -5.0 if bus.rocket_firing else -60.0
+	var target_rocket := 0.0 if bus.rocket_firing else -60.0
 	_rocket.volume_db = move_toward(_rocket.volume_db, target_rocket, 300.0 * delta)
 	if bus.rocket_firing and not _was_firing:
 		Audio.play("rocket_ignite", -4.0, 1.0, 0.05)
@@ -96,7 +97,7 @@ func _physics_process(delta: float) -> void:
 
 
 func honk() -> void:
-	Audio.play("horn", -3.0)
+	Audio.play("horn", 0.0)
 
 
 func stop_loops() -> void:
