@@ -49,7 +49,7 @@ func _ready() -> void:
 	menu.chosen.connect(_on_choice)
 	_label(ui, "STARS %d/%d" % [GameState.total_stars(), Levels.count() * 3], Vector2(0, 244), 8, Color("#ffcc26"), 2)
 	_label(ui, "F1 HELP", Vector2(0, 230), 8, Color(1, 1, 1, 0.5), 0)
-	_label(ui, "MUSIC BY KEVIN MACLEOD (INCOMPETECH.COM)  CC BY 4.0", Vector2(0, 258), 8, Color(1, 1, 1, 0.35), 0)
+	_label(ui, "MUSIC AND SOUND MADE WITH ELEVENLABS", Vector2(0, 258), 8, Color(1, 1, 1, 0.35), 0)
 	var world_name := _label(ui, Biomes.get_biome(biome).title, Vector2(8, 254), 8, Color(1, 1, 1, 0.4), 0)
 	world_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	world_name.size.x = 200

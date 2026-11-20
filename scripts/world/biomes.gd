@@ -30,7 +30,7 @@ const ALL := {
 		"decor": ["streetlight", "hydrant", "bin", "streetlight", "newsbox"], "fg": "lamppost",
 		"wall": true,  # a tagged concrete sound wall behind the road
 		"life": ["birds", "perched", "dust"],
-		"music": "music_menu", "ambience": "amb_city_loop", "friction": 1.0,
+		"music": "music_city_dawn", "ambience": "amb_city_loop", "friction": 1.0,
 		"chatter": ["NICE VIEW!", "IS THIS MY STOP?", "SMELLS LIKE TACOS"],
 	},
 	"desert": {

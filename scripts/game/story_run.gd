@@ -93,8 +93,10 @@ func step(delta: float) -> String:
 		if _trailer_hint_cd <= 0.0:
 			_trailer_hint_cd = 6.0
 			level._hint("BACK UP TO THE TRAILER TO RE-HOOK  (A / LEFT)")
-	if chase and chase.running and chase.lead(bus.chassis.global_position.x - 60.0) < 0.0:
-		return "mudslide"
+	if chase and chase.running:
+		chase.hear()
+		if chase.lead(bus.chassis.global_position.x - 60.0) < 0.0:
+			return "mudslide"
 	_refresh_hud()
 	return ""
 

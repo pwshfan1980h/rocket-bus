@@ -2,6 +2,8 @@
 """Synthesizes every Rocket Bus sound effect and music loop (no dependencies).
 
 Run from the project root:  python3 tools/gen_audio.py [name ...]
+Most sound effects and all music now come from tools/gen_elevenlabs.py (see
+docs/audio.md); with no names given this skips those so it won't overwrite them.
 Writes 22.05 kHz mono 16-bit WAVs into assets/audio. Files ending in _loop
 (and all music_*) are made seamless and are looped at runtime by Audio.
 """
@@ -970,14 +972,22 @@ SFX = [
 ]
 
 
+def _eleven_names():
+    """Sounds now made by tools/gen_elevenlabs.py: only rebuilt here when named explicitly."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import gen_elevenlabs
+    return set(gen_elevenlabs.SFX)
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     only = set(sys.argv[1:])
+    eleven = _eleven_names()
     for fn in SFX:
-        if not only or fn.__name__ in only:
+        if (not only and fn.__name__ not in eleven) or fn.__name__ in only:
             write(fn.__name__, fn())
     for name, args in MUSIC.items():
-        if not only or name in only:
+        if name in only:  # superseded by assets/music/*.ogg; only built when named
             print("composing", name)
             write(name, loopify(song(name, *args), 0.05), 0.85)
     print("audio written to", os.path.normpath(OUT))

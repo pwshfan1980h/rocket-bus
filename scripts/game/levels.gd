@@ -8,7 +8,7 @@ const WORLDS := ["DESERT", "JUNGLE", "MOUNTAINS", "SNOW", "VOLCANO", "MOON", "BO
 const GAP_EXTRA := 100.0
 
 # title, biome, blurb, jumps, gap kinds, gap length range, landing-height range (+-px),
-# fuel tank, options (zone "mud"/"ice", weather)
+# fuel tank, options (zone "mud"/"ice", weather, music: a track other than the world's)
 const RECIPES := [
 	["FIRST DAY", "desert", "Hold the rocket off the ramp. Land flat.", 3, ["chasm"], [170, 210], 0, 60, {}],
 	["OASIS HOP", "desert@noon", "Don't feed the bus to the oasis.", 4, ["water", "chasm"], [190, 240], 0, 85, {}],
@@ -17,19 +17,19 @@ const RECIPES := [
 	["RIVER RUN", "jungle", "Rivers, bugs, and one very nervous driver.", 5, ["water", "swamp"], [220, 270], 20, 85, {"weather": "rain"}],
 	["SWAMP THING", "jungle@noon", "Something lives in that swamp.", 6, ["swamp", "water"], [230, 280], 30, 125, {"zone": "mud"}],
 	["CANOPY CHASE", "jungle", "Mud, rain, monkeys.", 6, ["chasm", "water", "swamp"], [240, 290], 40, 155, {"zone": "mud", "weather": "rain"}],
-	["TEMPLE DROP", "jungle@night", "Nose down for the downhill landings.", 7, ["chasm", "swamp"], [250, 300], 60, 135, {"zone": "mud"}],
+	["TEMPLE DROP", "jungle@night", "Nose down for the downhill landings.", 7, ["chasm", "swamp"], [250, 300], 60, 135, {"zone": "mud", "music": "music_temple"}],
 	["SWITCHBACK", "mountain@dawn", "Up, over, and down the mountain.", 6, ["chasm", "water"], [240, 290], 40, 50, {}],
 	["GOAT PATH", "mountain", "Bumpy road in the rain. Hold it steady.", 7, ["chasm"], [250, 300], 40, 70, {"weather": "rain"}],
 	["EAGLE'S NEST", "mountain@noon", "Big air. Bigger gaps.", 7, ["chasm", "water"], [250, 300], 50, 80, {}],
 	["SUMMIT RUN", "mountain", "Eight gaps to the top of the world.", 8, ["chasm"], [260, 310], 50, 70, {"weather": "rain"}],
 	["FIRST FROST", "snow@noon", "Icy roads. Brake early.", 6, ["ice", "chasm"], [240, 290], 40, 65, {"zone": "ice"}],
 	["FROZEN LAKE", "snow@dawn", "Don't test the ice.", 7, ["ice"], [250, 300], 50, 85, {"zone": "ice"}],
-	["AVALANCHE ALLEY", "snow", "Blizzard. Can't see a thing.", 8, ["ice", "chasm"], [250, 300], 50, 70, {"zone": "ice", "weather": "blizzard"}],
-	["POLAR EXPRESS", "snow", "The heater is broken.", 8, ["ice", "chasm"], [250, 300], 50, 100, {"zone": "ice", "weather": "blizzard"}],
+	["AVALANCHE ALLEY", "snow", "Blizzard. Can't see a thing.", 8, ["ice", "chasm"], [250, 300], 50, 70, {"zone": "ice", "weather": "blizzard", "music": "music_blizzard"}],
+	["POLAR EXPRESS", "snow", "The heater is broken.", 8, ["ice", "chasm"], [250, 300], 50, 100, {"zone": "ice", "weather": "blizzard", "music": "music_blizzard"}],
 	["HOT FOOT", "volcano", "The floor is lava. Literally.", 7, ["lava", "chasm"], [280, 340], 50, 60, {}],
 	["MAGMA MILE", "volcano@night", "Don't touch the orange stuff.", 8, ["lava"], [290, 350], 60, 110, {}],
 	["ASH CLOUD", "volcano", "Can't see. Can't stop.", 8, ["lava", "chasm"], [260, 320], 60, 80, {"weather": "ash"}],
-	["THE LAST STOP", "volcano", "Nine gaps. Everyone off at the last stop.", 9, ["lava", "chasm"], [270, 320], 60, 85, {"weather": "ash"}],
+	["THE LAST STOP", "volcano", "Nine gaps. Everyone off at the last stop.", 9, ["lava", "chasm"], [270, 320], 60, 85, {"weather": "ash", "music": "music_finale"}],
 	["ONE SMALL HOP", "moon", "Low gravity. Easy on the rocket.", 5, ["chasm"], [480, 620], 40, 40, {}],
 	["CRATER HOPPER", "moon", "Craters everywhere. Float between them.", 6, ["chasm"], [520, 680], 50, 40, {}],
 	["DARK SIDE", "moon", "Nobody's out here to see you crash.", 7, ["chasm"], [560, 740], 60, 40, {}],
@@ -153,7 +153,7 @@ static func _build(index: int, r: Array) -> Dictionary:
 	segs.append(_end())
 
 	return {"title": title, "biome": biome, "fuel": float(r[7]), "blurb": r[2], "segments": segs,
-		"weather": opts.get("weather", "")}
+		"weather": opts.get("weather", ""), "music": opts.get("music", "")}
 
 
 static func _f(length: float) -> Dictionary:

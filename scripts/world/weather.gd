@@ -39,7 +39,8 @@ func _ready() -> void:
 	for i in n:
 		_drops.append(Vector4(rng.randf() * SIZE.x, rng.randf() * SIZE.y, rng.randf_range(0.6, 1.0), rng.randf_range(0.5, 1.0)))
 	headwind = {"sandstorm": 35.0, "blizzard": 25.0}.get(kind, 0.0)
-	var sound: String = {"rain": "rain_loop", "sandstorm": "sandstorm_loop", "blizzard": "blizzard_loop"}.get(kind, "")
+	var sound: String = {"rain": "rain_loop", "sandstorm": "sandstorm_loop", "blizzard": "blizzard_loop",
+		"ash": "ash_loop"}.get(kind, "")
 	if sound != "":
 		_loop = Audio.make_loop(sound, self, -10.0)
 		_loop.play()

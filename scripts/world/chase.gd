@@ -9,7 +9,8 @@ var speed := 200.0
 var accel := 3.0  ## px/s per second
 var running := false
 var _time := 0.0
-var _rumble := 0.0
+var _rumble: AudioStreamPlayer
+var _heard_at := -1.0  ## last time the run asked for the rumble (see hear())
 
 
 func setup(t: Terrain, spec: Dictionary) -> Chase:
@@ -23,13 +24,28 @@ func setup(t: Terrain, spec: Dictionary) -> Chase:
 func _physics_process(delta: float) -> void:
 	_time += delta
 	if not running:
+		if _rumble:
+			_rumble.stop()
 		return
 	speed += accel * delta
 	front += speed * delta
-	_rumble -= delta
-	if _rumble <= 0.0:
-		_rumble = randf_range(1.2, 2.2)
-		Audio.play_at("thunder", Vector2(front, _road(front)), -10.0, 0.3)
+	if _rumble == null:
+		_rumble = Audio.make_loop("mudslide_loop", self, -40.0)
+	if not _rumble.playing:
+		_rumble.play()
+	# Louder the closer the wave is to the middle of the screen; fades out once the
+	# run stops calling hear() (won, caught, results screen).
+	var cam := get_viewport().get_camera_2d()
+	var gap := (cam.get_screen_center_position().x - front) if cam else 600.0
+	var target := lerpf(-4.0, -28.0, clampf(gap / 1100.0, 0.0, 1.0))
+	if _time - _heard_at > 0.2:
+		target = -60.0
+	_rumble.volume_db = move_toward(_rumble.volume_db, target, 40.0 * delta)
+
+
+## Called by the story run every frame of play to keep the rumble going.
+func hear() -> void:
+	_heard_at = _time
 
 
 ## How far the bus is ahead of the wall (negative = caught).
