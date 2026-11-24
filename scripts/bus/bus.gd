@@ -695,7 +695,7 @@ func _check_landing(wheel_contacts: int, body_contact: bool, delta: float) -> vo
 		var upright := absf(wrapf(chassis.rotation, -PI, PI)) < deg_to_rad(110.0)
 		_flip_time = 0.0 if upright else _flip_time + delta
 		if _flip_time > 0.4:
-			_crash("FLIPPED IT")
+			_crash("FLIPPED")
 			return
 		# Slamming the nose into a wall while driving. Scraping the belly on a
 		# landing (suspension bottoming out) doesn't count; landings are graded below.
@@ -719,11 +719,11 @@ func _touchdown(body_first: bool) -> void:
 	var angle := absf(rad_to_deg(angle_difference(normal.angle() + PI / 2, chassis.rotation)))
 	last_landing = {"impact": impact, "angle": angle, "grade": ""}
 	if angle >= crash_angle:
-		_crash("TORSION FAILURE")
+		_crash("BAD ANGLE")
 	elif body_first and (impact > body_crash_speed or angle > crash_angle * 0.5):
-		_crash("BELLY FLOP")
+		_crash("BELLY HIT")
 	elif impact >= crash_impact:
-		_crash("TOO HARD!")
+		_crash("HARD IMPACT")
 	if is_crashed:
 		return
 	var grade := "good"
@@ -895,9 +895,7 @@ func _crash(reason: String) -> void:
 	passengers.event("crash")
 	is_crashed = true
 	last_landing.grade = "crash"
-	var at := chassis.global_position + Vector2(0, -52)
-	Fx.float_text(at, "WRECKED!", Color("#ff3b4e"), 16, false, 2.2)
-	Fx.float_text(at + Vector2(0, 18), reason, Color("#ffd23a"), 8, false, 2.2)
+	last_landing.reason = reason
 	Fx.shake(9.0)
 	_break_apart()
 	crashed.emit(reason)

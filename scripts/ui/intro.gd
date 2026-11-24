@@ -38,7 +38,6 @@ func _ready() -> void:
 ## is gone, and the caller stops. (In a web release build, awaiting on a null tree
 ## returns instantly, so an unguarded wait loop would spin forever and freeze the tab.)
 func _run() -> void:
-	_typewrite("SOMEWHERE IN THE MIDDLE OF NOWHERE...", Vector2(0, 36))
 	if not await _until(func(): return bus.chassis.global_position.x > 200): return
 	_phase = "brake"
 	if not await _until(func(): return absf(bus.get_speed()) < 6.0): return
@@ -109,20 +108,6 @@ func _title_slam() -> void:
 	l.scale = Vector2(3, 3)
 	var tw := create_tween().set_ignore_time_scale()
 	tw.tween_property(l, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	var sub := _label("TIME THE ROCKET.  LAND IT LEVEL.", Vector2(0, 108), 8, Color.WHITE, 2)
-	sub.modulate.a = 0.0
-	tw.tween_property(sub, "modulate:a", 1.0, 0.3)
-
-
-func _typewrite(text: String, pos: Vector2) -> void:
-	var l := _label("", pos, 8, Color("#ffe6b0"), 2)
-	for i in text.length():
-		l.text = text.substr(0, i + 1)
-		if text[i] != " ":
-			Audio.play("typewriter", -10.0, 1.0, 0.2)
-		if not await _wait(0.05): return
-	if not await _wait(1.2): return
-	create_tween().tween_property(l, "modulate:a", 0.0, 0.6)
 
 
 func _alive() -> bool:

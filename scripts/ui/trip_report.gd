@@ -10,6 +10,8 @@ signal chosen(id: String)
 var data: Dictionary  # see Level._finish_report
 var _grade_label: Label
 var _time := 0.0
+var _tw: Tween
+var _done := false
 
 
 func setup(d: Dictionary) -> TripReport:
@@ -36,10 +38,10 @@ func _ready() -> void:
 	border.position = card.position
 	border.size = card.size
 	add_child(border)
-	_text("ROCKET BUS TRIP REPORT", Vector2(70, 28), 8, Color("#ff4aa8"), 340, HORIZONTAL_ALIGNMENT_CENTER)
+	_text("LEG CLEAR" if data.get("story", false) else "STAGE CLEAR", Vector2(70, 28), 8, Color("#ff4aa8"), 340, HORIZONTAL_ALIGNMENT_CENTER)
 	_text("%s  %s" % [data.code, data.title], Vector2(70, 38), 16, Color("#ffcc26"), 340, HORIZONTAL_ALIGNMENT_CENTER)
 	if data.comet:
-		_text("COMET EXIT!  +BONUS", Vector2(70, 57), 8, Color("#ff9a2e"), 340, HORIZONTAL_ALIGNMENT_CENTER)
+		_text("COMET EXIT  +2500", Vector2(70, 57), 8, Color("#ff9a2e"), 340, HORIZONTAL_ALIGNMENT_CENTER)
 	var box := ReferenceRect.new()  # the grade's own corner of the card
 	box.border_color = Color(1, 1, 1, 0.25)
 	box.border_width = 1
@@ -69,6 +71,7 @@ func _play() -> void:
 		["RETRIES", str(data.retries)],
 	]
 	var tw := create_tween()
+	_tw = tw
 	for i in rows.size():
 		var y := 70 + i * 10
 		var l := _text(rows[i][0], Vector2(84, y), 8, Color("#d8f8ff"), 110, HORIZONTAL_ALIGNMENT_LEFT)
@@ -122,15 +125,24 @@ func _stamp_grade() -> void:
 
 
 func _menu() -> void:
-	var entries := [["next", "NEXT LEVEL"], ["restart", "RETRY"], ["menu", "MENU"]]
+	_done = true
+	var entries := [["next", "NEXT LEVEL"], ["restart", "RETRY"], ["menu", "LEVEL SELECT"]]
 	if data.get("story", false):  # roguelike: no replays, onwards down the route
 		entries = [["story_next", "CONTINUE"]]
 	elif data.last:
-		entries = [["menu", "YOU BEAT THE GAME!"], ["restart", "RETRY"]]
+		entries = [["menu", "LEVEL SELECT"], ["restart", "RETRY"]]
 	var menu := MenuList.new().setup(entries, 8, 11)
 	menu.position = Vector2(240, 212)
 	add_child(menu)
 	menu.chosen.connect(func(id): chosen.emit(id))
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _done or _tw == null or not _tw.is_valid():
+		return
+	if event.is_action_pressed("ui_accept") or (event is InputEventMouseButton and event.pressed):
+		_tw.set_speed_scale(6.0)
+		get_viewport().set_input_as_handled()
 
 
 func _text(t: String, pos: Vector2, font_size: int, color: Color, width: float,

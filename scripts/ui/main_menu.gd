@@ -37,7 +37,6 @@ func _ready() -> void:
 	_logo.label_settings.shadow_color = Color("#ff4aa8")
 	_logo.label_settings.shadow_offset = Vector2(3, 3)
 	_logo.pivot_offset = Vector2(240, 16)
-	_label(ui, "TIME THE ROCKET.  LAND IT LEVEL.", Vector2(0, 66), 8, Color.WHITE, 2)
 	var entries := [["story", "STORY"], ["arcade", "ARCADE"], ["lab", "BUS LAB"],
 		["music", _onoff("MUSIC", GameState.music_on)], ["sfx", _onoff("SOUND", GameState.sfx_on)],
 		["gore", _onoff("GORE", GameState.gore_on)]]
@@ -73,11 +72,10 @@ func _on_choice(id: String) -> void:
 	if id in ["arcade", "lab", "story"]:
 		menu.active = false  # no double-triggering while the screen fades out
 	match id:
-		"arcade":  # every map, start to finish
+		"arcade":
 			GameState.story_mode = false
 			GameState.checkpoint = {}
-			GameState.current_level = 0
-			Transition.go("res://scenes/level.tscn")
+			Transition.go("res://scenes/level_select.tscn", 0.25)
 		"story":  # a fresh run, always
 			GameState.story = {}
 			GameState.story_mode = false

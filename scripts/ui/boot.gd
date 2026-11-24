@@ -15,7 +15,6 @@ func _ready() -> void:
 	title.label_settings.shadow_color = Color("#ff4aa8")
 	title.label_settings.shadow_offset = Vector2(3, 3)
 	_prompt = _center("CLICK OR PRESS ANY KEY", 160, 8, Color.WHITE, 2)
-	_center("HEADPHONES RECOMMENDED", 250, 8, Color(1, 1, 1, 0.35), 0)
 	# Test hook: ?autotest in the page URL skips the "press any key" wait.
 	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.search")).contains("autotest"):
 		get_tree().create_timer(1.0).timeout.connect(_start)

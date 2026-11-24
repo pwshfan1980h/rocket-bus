@@ -92,7 +92,7 @@ func step(delta: float) -> String:
 			return "cargo"
 		if _trailer_hint_cd <= 0.0:
 			_trailer_hint_cd = 6.0
-			level._hint("BACK UP TO THE TRAILER TO RE-HOOK  (A / LEFT)")
+			level._hint("REVERSE TO RE-HOOK  (A / LEFT)")
 	if chase and chase.running:
 		chase.hear()
 		if chase.lead(bus.chassis.global_position.x - 60.0) < 0.0:
@@ -104,7 +104,7 @@ func step(delta: float) -> String:
 ## Can the bus finish right now? (Trailer hooked, every stop served.)
 func finish_block() -> String:
 	if trailer and not trailer.attached:
-		return "GO BACK FOR THE TRAILER!"
+		return "RE-HOOK TRAILER"
 	for s in world.terrain.stops:
 		if not s.done:
 			return "missed"
@@ -229,8 +229,8 @@ func _refresh_hud() -> void:
 	if chase and chase.running:
 		parts.append("MUD %dm" % maxi(0, int(chase.lead(bus.chassis.global_position.x) / 10.0)))
 	for r in requests:
-		var want: String = {"front_flip": "WANTS A FRONT FLIP", "no_flips": "SAYS NO FLIPS", "big_air": "WANTS BIG AIR"}[r.want]
-		parts.append("%s %s%s" % [r.who, want, {"open": "", "done": " :)", "failed": " >:("}[r.state]])
+		var want: String = {"front_flip": "FRONT FLIP", "no_flips": "NO FLIPS", "big_air": "BIG AIR"}[r.want]
+		parts.append("%s: %s%s" % [r.who, want, {"open": "", "done": " OK", "failed": " X"}[r.state]])
 	_hud_line.text = "\n".join(parts)
 	_ring.queue_redraw()
 

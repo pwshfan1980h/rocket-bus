@@ -9,13 +9,15 @@ extends Node2D
 enum State { INTRO, PLAY, WON, FAILED }
 
 const FAIL_TEXT := {
-	"chasm": "FELL IN!", "water": "SPLASHDOWN!", "swamp": "SWAMPED!", "ice": "ON THIN ICE!",
-	"lava": "TOASTED!", "crash": "WRECKED!", "cargo": "LOST THE CARGO!", "mudslide": "BURIED IN MUD!",
-	"missed": "MISSED A STOP!",
+	"chasm": "FELL", "water": "DROWNED", "swamp": "SANK", "ice": "FROZEN",
+	"lava": "LAVA", "crash": "WRECKED", "cargo": "CARGO LOST", "mudslide": "BURIED",
+	"missed": "MISSED STOP",
 }
 const POINTS := {"perfect": 1000, "good": 500, "hard": 150}
 const FRONT_FLIP_POINTS := 2000  ## per front flip stuck (+half again for a perfect landing)
 const BACKFLIP_POINTS := 750
+const STREAK_POINTS := 250  ## bonus per perfect landing in a streak (2x+)
+const STREAK_FUEL := 0.05  ## fraction of tank refunded on a perfect landing streak (2x+)
 const FULL_BUS_POINTS := 1500  ## nobody walked off
 const OVERTIME_PER_FUEL := 25  ## leftover fuel turns into points at the finish
 const BONKS_TO_LEAVE := 3
@@ -57,6 +59,9 @@ var _comet := false
 var _speed_lines: Control
 var _cp_passed := -INF
 var _flip_points := 0  ## bonus banked from flips that were landed
+var _perfect_streak := 0
+var _streak_points := 0
+var _fail_skip := false
 var _rush: Control  ## speed lines at the screen edges when the bus is flying along
 var _rush_amount := 0.0
 var _leaving: Array[Dictionary] = []  ## riders fed up with the bonks: off at the next stop
@@ -121,6 +126,8 @@ func _ready() -> void:
 		cleared = _resume.cleared
 		_style.merge(_resume.get("style", {}), true)
 		_flip_points = _resume.get("flip_points", 0)
+		_perfect_streak = _resume.get("perfect_streak", 0)
+		_streak_points = _resume.get("streak_points", 0)
 		_retries = _resume.get("retries", 0) + 1
 		_low_fuel = _resume.get("low_fuel", 1.0)
 		GameState.checkpoint.retries = _retries
@@ -151,7 +158,16 @@ func _hook_bus() -> void:
 
 func _intro() -> void:
 	state = State.INTRO
-	if not _skip_intro and _resume.is_empty():
+	if not _resume.is_empty():
+		# Checkpoint retry: instant jump back into driving with a quick non-blocking banner.
+		_big_center("CHECKPOINT", Color("#3cf0dc"))
+		Audio.play("count_go", -4.0)
+		state = State.PLAY
+		bus.controls_enabled = true
+		if _story:
+			_story.start()
+		return
+	if not _skip_intro:
 		bus.controls_enabled = true
 		_arrival = "drive"
 		Audio.play("vroom", -2.0)
@@ -162,28 +178,27 @@ func _intro() -> void:
 		bus.controls_enabled = false
 		world.camera.target = bus.chassis
 		bus.passengers.event("start")
-	if _story and _resume.is_empty() and not _skip_intro:
-		await _radio(def.radio)
-		if not is_inside_tree(): return
 	var card_text := "%s  %s" % [_code(), def.title]
-	if not _resume.is_empty():
-		card_text = "CHECKPOINT"
-	var card := _label(_hud.layer, card_text, Vector2(0, 90), 16, Color("#ffcc26"), 4)
+	var card := _label(_hud.layer, card_text, Vector2(0, 96), 16, Color("#ffcc26"), 4)
 	card.size.x = 480
 	card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var blurb := _label(_hud.layer, def.blurb, Vector2(0, 114), 8, Color.WHITE, 2)
-	blurb.size.x = 480
-	blurb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var wait := 0.3 if _skip_intro else 1.6  # (the gap count lives in the HUD)
+	var tags: Array = def.get("tags", [])
+	var tag_label: Label = null
+	if not tags.is_empty():
+		tag_label = _label(_hud.layer, "  /  ".join(tags), Vector2(0, 120), 8, Color("#3cf0dc"), 2)
+		tag_label.size.x = 480
+		tag_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var wait := 0.25 if _skip_intro else 1.15
 	await get_tree().create_timer(wait).timeout
 	if not is_inside_tree(): return
-	for n in [card, blurb]:
-		n.queue_free()
-	if not _skip_intro and _resume.is_empty():
+	card.queue_free()
+	if tag_label:
+		tag_label.queue_free()
+	if not _skip_intro:
 		for c in ["3", "2", "1"]:
 			_big_center(c, Color.WHITE)
 			Audio.play("count_beep", -4.0)
-			await get_tree().create_timer(0.55).timeout
+			await get_tree().create_timer(0.5).timeout
 			if not is_inside_tree(): return
 	_big_center("GO!", Color("#7dff6a"))
 	Audio.play("count_go", -4.0)
@@ -210,8 +225,18 @@ func _physics_process(delta: float) -> void:
 	while _recording and _ghost_run.size() / Ghost.STRIDE <= int(clock * Ghost.RATE):
 		Ghost.sample(bus, _ghost_run)
 	_hud.time.text = "%d.%d" % [int(clock), int(fmod(clock, 1.0) * 10)]
-	_hud.fuel.size.x = roundf(60 * bus.fuel_ratio())
-	_hud.fuel.color = Color("#ff4aa8") if bus.fuel_ratio() > 0.25 else Color("#ff3b3b")
+	var ratio := bus.fuel_ratio()
+	_hud.fuel.size.x = roundf(60 * ratio)
+	var low := ratio <= 0.25 and ratio > 0.0
+	if low:
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.018)
+		_hud.fuel.color = Color("#ff3b3b").lerp(Color("#ffe066"), pulse * 0.45)
+		_hud.fuel_frame.position = Vector2(398 + (1 if int(Time.get_ticks_msec() / 60) % 2 == 0 else -1), 8)
+		_hud.fuel_frame.border_color = Color("#ff3b4e")
+	else:
+		_hud.fuel.color = Color("#ff4aa8") if ratio > 0.25 else Color("#5a2030")
+		_hud.fuel_frame.position = Vector2(398, 8)
+		_hud.fuel_frame.border_color = Color(1, 1, 1, 0.35)
 
 	var zone := ""
 	for w in bus.wheels:
@@ -265,7 +290,7 @@ func _physics_process(delta: float) -> void:
 	_stuck_time = _stuck_time + delta if absf(bus.get_speed()) < 5.0 and clock > 3.0 else 0.0
 	_teeter(delta)
 	if _stuck_time > 4.0 and _hud.hint.text == "":
-		_hint("STUCK?  PRESS R TO RETRY")
+		_hint("PRESS R TO RETRY")
 
 
 ## Stalled with a wheel hanging over a gap (e.g. beached on the far lip): wobble,
@@ -295,13 +320,16 @@ func _teeter(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if state == State.FAILED and _end_panel == null and event.is_action_pressed("ui_accept"):
+		_fail_skip = true
+		return
 	if event.is_action_pressed("reset") and state != State.INTRO:
 		if _story and GameState.story.lives <= 0:
 			return  # out of lives: the only way is back to the depot
 		if _story and state == State.PLAY:
 			_spend_life_and_restart()
 			return
-		Transition.go("res://scenes/level.tscn")
+		Transition.go("res://scenes/level.tscn", 0.15)
 	elif event.is_action_pressed("pause") and state == State.PLAY:
 		_toggle_pause()
 	elif event.is_action_pressed("zoom_in") or event.is_action_pressed("zoom_out"):
@@ -341,7 +369,8 @@ func _reach_checkpoint(cx: float) -> void:
 	_cp_passed = cx
 	GameState.checkpoint = {"level": _level_key(), "x": cx, "fuel": bus.fuel, "clock": clock,
 		"landings": landings.duplicate(), "cleared": cleared, "retries": _retries, "style": _style.duplicate(),
-		"flip_points": _flip_points, "low_fuel": _low_fuel}
+		"flip_points": _flip_points, "perfect_streak": _perfect_streak, "streak_points": _streak_points,
+		"low_fuel": _low_fuel}
 	Audio.play("star", -4.0)
 	_let_off_leavers()
 	Fx.float_text(bus.chassis.global_position + Vector2(0, -60), "CHECKPOINT!", Color("#3cf0dc"), 16)
@@ -355,11 +384,22 @@ func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 	_cash_flips(grade)
 	if _story:
 		_story.on_landed(grade)
+	if grade == "perfect":
+		_perfect_streak += 1
+		if _perfect_streak >= 2:
+			var bonus := STREAK_POINTS * _perfect_streak
+			_streak_points += bonus
+			bus.fuel = minf(bus.fuel_capacity, bus.fuel + bus.fuel_capacity * STREAK_FUEL)
+			Fx.float_text(bus.chassis.global_position + Vector2(0, -72), "x%d +%d" % [_perfect_streak, bonus],
+					Color("#ffcc26"), 8, false, 1.4)
+			Audio.play("star", -6.0, 1.0 + minf(_perfect_streak, 6) * 0.08)
+	else:
+		_perfect_streak = 0
 	if grade == "hard":
 		var r := bus.passengers.bonk_someone()
 		if not r.is_empty() and r.bonks >= BONKS_TO_LEAVE and not r in _leaving:
 			_leaving.append(r)
-			_hint("A RIDER IS GETTING OFF AT THE NEXT STOP!")
+			_hint("RIDER LEAVING AT NEXT STOP")
 		_update_riders()
 	var x := bus.chassis.global_position.x
 	var now_cleared := 0
@@ -376,7 +416,7 @@ func _on_landed(grade: String, _impact: float, _angle: float) -> void:
 		Audio.play("gap_cleared", -6.0)
 		if index == 0 and _hint_step < 4 and not _story:
 			_hint_step = 4
-			_hint("NICE!  NOW GET TO THE BUS STOP")
+			_hint("REACH THE FINISH")
 
 
 ## Landed in one piece after flipping: front flips get the full fanfare.
@@ -480,10 +520,10 @@ func _tutorial(x: float) -> void:
 	var ramp: Dictionary = world.terrain.ramps[0]
 	if _hint_step == 0 and x > ramp.x0 - 320:
 		_hint_step = 1
-		_hint("RAMP AHEAD!  HOLD SHIFT FOR ROCKET")
+		_hint("HOLD SHIFT  ROCKET")
 	elif _hint_step == 1 and bus.airborne and x > ramp.lip_x:
 		_hint_step = 2
-		_hint("IN THE AIR:  A / D  TO TILT.  LAND FLAT!")
+		_hint("A / D  TILT IN AIR")
 
 
 ## Scripted roll-in: drive toward the start line and brake to a stop on it.
@@ -553,7 +593,7 @@ func _finish_report(comet: bool) -> Dictionary:
 		score += _story.tips()
 	var full := bus.passengers.aboard_count() >= bus.passengers.seat_count()
 	score += overtime + maxi(0, int((par - clock) * 50)) + (FULL_BUS_POINTS if full else 0)
-	score += _flip_points + _style.close * 400 + int(_style.air * 100) + (2500 if comet else 0)
+	score += _flip_points + _streak_points + _style.close * 400 + int(_style.air * 100) + (2500 if comet else 0)
 	return {
 		"code": _code(), "title": def.title, "time": clock, "par": par, "landings": landings.duplicate(),
 		"style": _style.duplicate(), "fuel_pct": int(bus.fuel / bus.fuel_capacity * 100), "retries": _retries,
@@ -662,6 +702,7 @@ func _fail(kind: String, reason := "") -> void:
 	if state != State.PLAY:
 		return
 	state = State.FAILED
+	_fail_skip = false
 	if _story and not _bot:
 		GameState.story.lives -= 1
 		_hud_lives()
@@ -669,14 +710,82 @@ func _fail(kind: String, reason := "") -> void:
 		_bot_done("FAILED", "%s %s at x=%d fuel=%d low=%d%% landings=%s" % [kind, reason, bus.chassis.global_position.x, bus.fuel,
 				_low_fuel * 100.0, landings])
 		return
-	await get_tree().create_timer(0.5).timeout
-	if not is_inside_tree(): return
-	if kind != "crash":
-		_big_center(FAIL_TEXT.get(kind, "OOPS!"), Color("#ff3b4e"))
-	await get_tree().create_timer(1.8).timeout
-	if not is_inside_tree(): return
+	# Crimson impact flash + brief hit-stop slow-mo on wrecks so the break-apart pops.
+	var flash := ColorRect.new()
+	flash.color = Color(0.95, 0.12, 0.2, 0.48 if kind == "crash" else 0.3)
+	flash.size = Vector2(480, 270)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.layer.add_child(flash)
+	var ftw := flash.create_tween().set_ignore_time_scale()
+	ftw.tween_property(flash, "color:a", 0.0, 0.38)
+	ftw.tween_callback(flash.queue_free)
+	if kind == "crash":
+		Engine.time_scale = GameState.PACE * 0.25
+		await get_tree().create_timer(0.22, true, false, true).timeout
+		if not is_inside_tree():
+			Fanfare.restore_time()
+			return
+		Fanfare.restore_time()
+	var wait := 0.95 if kind == "crash" else 0.85
+	var elapsed := 0.0
+	while elapsed < wait and not _fail_skip and is_inside_tree():
+		await get_tree().process_frame
+		elapsed += get_process_delta_time()
+	if not is_inside_tree():
+		return
 	Audio.play("fail_jingle", -4.0)
-	_show_retry(FAIL_TEXT.get(kind, "OOPS!"))
+	_show_crash_screen(kind, reason)
+
+
+func _show_crash_screen(kind: String, reason: String) -> void:
+	var finish_x := maxf(1.0, world.terrain.finish_x)
+	var bx := bus.chassis.global_position.x if is_instance_valid(bus) and bus.chassis else _max_x
+	var progress := clampf(bx / finish_x, 0.0, 1.0)
+	var cps: Array = []
+	for cx in world.terrain.checkpoints:
+		cps.append(clampf(cx / finish_x, 0.0, 1.0))
+	var detail := _fail_detail(kind, reason)
+	var card := CrashScreen.new().setup({
+		"kind": kind,
+		"title": FAIL_TEXT.get(kind, "WRECKED"),
+		"detail": detail,
+		"progress": progress,
+		"checkpoints": cps,
+		"cleared": cleared,
+		"total_gaps": world.terrain.gaps.size(),
+		"time": clock,
+		"has_checkpoint": not GameState.checkpoint.is_empty(),
+		"story": _story != null,
+		"lives": GameState.story.get("lives", 0) if _story else 0,
+		"max_lives": Story.LIVES,
+	})
+	_end_panel = card
+	_hud.layer.add_child(card)
+	card.chosen.connect(_on_menu_choice)
+
+
+func _fail_detail(kind: String, reason: String) -> String:
+	match kind:
+		"crash":
+			var ll := bus.last_landing if is_instance_valid(bus) else {}
+			if reason == "BAD ANGLE" and ll.has("angle"):
+				return "BAD ANGLE  %d DEG  (MAX %d)" % [roundi(ll.angle), int(bus.crash_angle)]
+			if reason == "HARD IMPACT" and ll.has("impact"):
+				return "HARD IMPACT  %d  (MAX %d)" % [roundi(ll.impact), int(bus.crash_impact)]
+			if reason == "BELLY HIT" and ll.has("angle"):
+				return "BELLY HIT  %d DEG" % roundi(ll.angle)
+			return reason if reason != "" else "CHASSIS WRECKED"
+		"chasm", "water", "swamp", "ice", "lava":
+			var fuel_pct := roundi(bus.fuel_ratio() * 100.0) if is_instance_valid(bus) else 0
+			return "GAP %d/%d   FUEL %d%%" % [mini(cleared + 1, maxi(1, world.terrain.gaps.size())),
+					world.terrain.gaps.size(), fuel_pct]
+		"cargo":
+			return "TRAILER LOST IN GAP"
+		"mudslide":
+			return "CAUGHT BY MUDSLIDE"
+		"missed":
+			return "SKIPPED A BUS STOP"
+	return ""
 
 
 # --- Bot --------------------------------------------------------------------------
@@ -781,7 +890,7 @@ func _build_hud() -> void:
 	_hud.time.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label(layer, "FUEL", Vector2(364, 10), 8, Color("#ffcc26"), 2)
 	var back := ColorRect.new()
-	back.color = Color(0.08, 0.04, 0.12, 0.8)
+	back.color = Color(0.08, 0.04, 0.12, 0.85)
 	back.position = Vector2(399, 9)
 	back.size = Vector2(64, 10)
 	layer.add_child(back)
@@ -791,6 +900,14 @@ func _build_hud() -> void:
 	fill.size = Vector2(60, 6)
 	layer.add_child(fill)
 	_hud.fuel = fill
+	var frame := ReferenceRect.new()
+	frame.border_color = Color(1, 1, 1, 0.35)
+	frame.border_width = 1
+	frame.editor_only = false
+	frame.position = Vector2(398, 8)
+	frame.size = Vector2(66, 12)
+	layer.add_child(frame)
+	_hud.fuel_frame = frame
 	_hud.hint = _label(layer, "", Vector2(0, 238), 8, Color("#ffffff"), 2)
 	_hud.hint.size.x = 480
 	_hud.hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -919,32 +1036,13 @@ func _toggle_pause() -> void:
 	if not GameState.checkpoint.is_empty():
 		entries.append(["retry", "RETRY CHECKPOINT"])
 	if _story:
-		entries.append_array([["restart", "RESTART LEG (-1 LIFE)"], ["quit_run", "QUIT RUN"]])
+		entries.append_array([["restart", "RESTART LEG (-1 LIFE)"], ["quit_run", "END RUN"]])
 	else:
-		entries.append_array([["restart", "RESTART LEVEL"], ["menu", "QUIT TO MENU"]])
+		entries.append_array([["restart", "RESTART LEVEL"], ["menu", "LEVEL SELECT"]])
 	_pause_menu = MenuList.new().setup(entries, 8, 16)
 	_pause_menu.position = Vector2(240, 110)
 	_pause_panel.add_child(_pause_menu)
 	_pause_menu.chosen.connect(_on_menu_choice)
-
-
-func _show_retry(reason: String) -> void:
-	if _story:
-		_show_story_retry(reason)
-		return
-	_end_panel = _panel(reason, Color("#ff3b4e"))
-	var line := _label(_end_panel, "GAPS CLEARED %d/%d" % [cleared, world.terrain.gaps.size()], Vector2(110, 86), 8, Color.WHITE, 2)
-	line.size.x = 260
-	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var has_cp := not GameState.checkpoint.is_empty()
-	var entries := [["retry", "RETRY FROM CHECKPOINT" if has_cp else "TRY AGAIN"]]
-	if has_cp:
-		entries.append(["restart", "RESTART LEVEL"])
-	entries.append(["menu", "MENU"])
-	var menu := MenuList.new().setup(entries, 8, 16)
-	menu.position = Vector2(240, 140)
-	_end_panel.add_child(menu)
-	menu.chosen.connect(_on_menu_choice)
 
 
 func _set_score(v: int, label: Label) -> void:
@@ -972,16 +1070,16 @@ func _on_menu_choice(id: String) -> void:
 			if _story and state == State.PLAY:
 				_spend_life_and_restart()
 				return
-			Transition.go("res://scenes/level.tscn")
+			Transition.go("res://scenes/level.tscn", 0.15)
 		"restart":
 			GameState.checkpoint = {}
 			if _story and state == State.PLAY:
 				_spend_life_and_restart()
 				return
-			Transition.go("res://scenes/level.tscn")
+			Transition.go("res://scenes/level.tscn", 0.15)
 		"menu":
 			GameState.checkpoint = {}
-			Transition.go("res://scenes/story_map.tscn" if _story else "res://scenes/main_menu.tscn")
+			Transition.go("res://scenes/story_map.tscn" if _story else "res://scenes/level_select.tscn")
 		"story_next":
 			GameState.checkpoint = {}
 			Transition.go("res://scenes/story_map.tscn")
@@ -1002,31 +1100,6 @@ func _label(parent: Node, text: String, pos: Vector2, size: int, color: Color, o
 
 # --- Story ------------------------------------------------------------------------
 
-## Dispatch radio card: the leg's briefing typed out line by line. Any key skips.
-func _radio(lines: Array) -> void:
-	var box := ColorRect.new()
-	box.color = Color(0.05, 0.03, 0.09, 0.9)
-	box.position = Vector2(60, 70)
-	box.size = Vector2(360, 96)
-	_hud.layer.add_child(box)
-	var head := _label(box, "DISPATCH  -  %s" % def.title, Vector2(8, 8), 8, Color("#ff4aa8"), 0)
-	head.size.x = 344
-	var body := _label(box, "", Vector2(8, 26), 8, Color("#d8f8ff"), 0)
-	body.size = Vector2(344, 64)
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.label_settings.line_spacing = 4
-	var text := "\n".join(lines)
-	for i in text.length():
-		body.text = text.substr(0, i + 1)
-		if i % 3 == 0:
-			Audio.play("typewriter", -14.0, randf_range(0.95, 1.05))
-		await get_tree().create_timer(0.025).timeout
-		if not is_inside_tree(): return
-	await get_tree().create_timer(1.4).timeout
-	if is_inside_tree():
-		box.queue_free()
-
-
 ## Bailing out of a leg mid-run costs a life, like crashing would.
 func _spend_life_and_restart() -> void:
 	get_tree().paused = false
@@ -1035,15 +1108,33 @@ func _spend_life_and_restart() -> void:
 		GameState.story.over = "dead"
 		Transition.go("res://scenes/story_map.tscn")
 	else:
-		Transition.go("res://scenes/level.tscn")
+		Transition.go("res://scenes/level.tscn", 0.15)
 
 
 func _hud_lives() -> void:
-	if not _hud.has("lives"):
-		_hud.lives = _label(_hud.layer, "", Vector2(364, 22), 8, Color("#ff5a78"), 2)
-	_hud.lives.text = "LIVES %d/%d" % [maxi(0, GameState.story.lives), Story.LIVES]
-	if GameState.story.lives <= 0:
-		_hud.lives.text = "NO LIVES LEFT"
+	if not _hud.has("hearts"):
+		var row := Control.new()
+		row.position = Vector2(364, 24)
+		row.size = Vector2(102, 10)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.draw.connect(_draw_hud_hearts.bind(row))
+		_hud.layer.add_child(row)
+		_hud.hearts = row
+	_hud.hearts.queue_redraw()
+
+
+func _draw_hud_hearts(n: Control) -> void:
+	var lives: int = maxi(0, GameState.story.get("lives", 0))
+	for i in Story.LIVES:
+		var p := Vector2(i * 14, 0)
+		var c := Color("#ff4a6e") if i < lives else Color(1, 1, 1, 0.16)
+		n.draw_rect(Rect2(p + Vector2(1, 0), Vector2(3, 2)), c)
+		n.draw_rect(Rect2(p + Vector2(6, 0), Vector2(3, 2)), c)
+		n.draw_rect(Rect2(p + Vector2(0, 1), Vector2(10, 3)), c)
+		n.draw_rect(Rect2(p + Vector2(2, 4), Vector2(6, 2)), c)
+		n.draw_rect(Rect2(p + Vector2(4, 6), Vector2(2, 1)), c)
+		if i < lives:
+			n.draw_rect(Rect2(p + Vector2(2, 1), Vector2(1, 1)), Color(1, 1, 1, 0.7))
 
 
 ## Bank a cleared leg into the run: score, riders who walked, a life for S grades.
@@ -1063,25 +1154,3 @@ func _story_cleared(report: Dictionary) -> void:
 		run.at = next[0]
 	else:
 		run.at = ""  # a fork: the story map asks which way
-
-
-func _show_story_retry(reason: String) -> void:
-	var lives: int = GameState.story.lives
-	_end_panel = _panel(reason, Color("#ff3b4e"))
-	var line := _label(_end_panel, "LIVES LEFT: %d" % lives if lives > 0 else "OUT OF LIVES. THE RUN IS OVER.",
-			Vector2(110, 86), 8, Color("#ff5a78"), 2)
-	line.size.x = 260
-	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var entries := []
-	if lives > 0:
-		var has_cp := not GameState.checkpoint.is_empty()
-		entries.append(["retry", "RETRY FROM CHECKPOINT" if has_cp else "TRY AGAIN"])
-		if has_cp:
-			entries.append(["restart", "RESTART LEG"])
-		entries.append(["give_up", "GIVE UP THE ROUTE"])
-	else:
-		entries.append(["give_up", "BACK TO THE DEPOT"])
-	var menu := MenuList.new().setup(entries, 8, 16)
-	menu.position = Vector2(240, 130)
-	_end_panel.add_child(menu)
-	menu.chosen.connect(_on_menu_choice)

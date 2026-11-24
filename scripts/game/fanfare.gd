@@ -35,7 +35,7 @@ func play(flips: int, perfect: bool, points: int) -> void:
 	var title := "FRONT FLIP!" if flips == 1 else "%s FRONT FLIP!" % ["", "", "DOUBLE", "TRIPLE"][mini(flips, 3)]
 	if flips > 3:
 		title = "%dx FRONT FLIP!" % flips
-	_banner(title, "STUCK IT!" if not perfect else "PERFECTLY STUCK!", "+%d" % points)
+	_banner(title, "PERFECT!" if perfect else "", "+%d" % points)
 	_crowd()
 	_punch_zoom()
 	get_tree().create_timer(4.0, true, false, true).timeout.connect(queue_free)
@@ -103,17 +103,19 @@ func _banner(title: String, sub: String, points: String) -> void:
 	var root := Control.new()
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(root)
-	var big := _label(root, title, 48, 32, 6)
-	var small := _label(root, sub, 86, 16, 4)
-	var pts := _label(root, points, 106, 16, 4)
+	var big := _label(root, title, 52, 32, 6)
+	var small: Label = _label(root, sub, 88, 16, 4) if sub != "" else null
+	var pts := _label(root, points, 108 if sub != "" else 90, 16, 4)
 	pts.label_settings.font_color = Color("#7dff6a")
 	big.scale = Vector2(2.4, 2.4)
-	small.scale = Vector2.ZERO
+	if small:
+		small.scale = Vector2.ZERO
 	pts.scale = Vector2.ZERO
 	var tw := root.create_tween().set_ignore_time_scale()
 	tw.tween_property(big, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK)
-	tw.tween_property(small, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK)
-	tw.tween_callback(Audio.play.bind("stamp", -4.0))
+	if small:
+		tw.tween_property(small, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK)
+		tw.tween_callback(Audio.play.bind("stamp", -4.0))
 	tw.tween_property(pts, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK)
 	tw.tween_callback(Audio.play.bind("cha_ching", -6.0))
 	tw.tween_interval(1.4)
@@ -122,7 +124,8 @@ func _banner(title: String, sub: String, points: String) -> void:
 	var hue := root.create_tween().set_ignore_time_scale().set_loops(12)
 	hue.tween_method(func(h: float):
 		big.label_settings.font_color = Color.from_hsv(h, 0.7, 1.0)
-		small.label_settings.font_color = Color.from_hsv(fmod(h + 0.5, 1.0), 0.5, 1.0), 0.0, 1.0, 0.2)
+		if small:
+			small.label_settings.font_color = Color.from_hsv(fmod(h + 0.5, 1.0), 0.5, 1.0), 0.0, 1.0, 0.2)
 
 
 func _label(parent: Control, text: String, y: float, size: int, outline: int) -> Label:

@@ -24,36 +24,37 @@ func _ready() -> void:
 	add_child(shade)
 	Audio.music("music_menu")
 	_text("STORY", Vector2(0, 8), 16, LINE, 4)
-	_text("7 LIVES, START TO FINISH. ONE BAD WEEK TO RETIREMENT.   F1 HELP", Vector2(0, 30), 8, Color(1, 1, 1, 0.55), 0)
 	var run: Dictionary = GameState.story
+	if run.is_empty():
+		_text("7 LIVES   F1 HELP", Vector2(0, 30), 8, Color(1, 1, 1, 0.55), 0)
+	else:
+		_text("F1 HELP", Vector2(0, 28), 8, Color(1, 1, 1, 0.45), 0)
 	var entries := []
 	if run.is_empty():
-		_text("THE DRIVER HAS ONE WEEK LEFT. THE ROUTE NOBODY FINISHES.", Vector2(0, 206), 8, Color.WHITE, 2)
-		entries = [["new", "START THE ROUTE"], ["menu", "MAIN MENU"]]
+		entries = [["new", "START"], ["menu", "MAIN MENU"]]
 	elif run.over == "dead":
-		_text("ROUTE CANCELLED.  YOU MADE IT %d LEG%s.  SCORE %d" % [run.path.size(),
-				"" if run.path.size() == 1 else "S", run.score], Vector2(0, 206), 8, Color("#ff5a78"), 2)
-		entries = [["new", "TRY THE ROUTE AGAIN"], ["menu", "MAIN MENU"]]
+		_text("RUN OVER   %d LEGS   SCORE %d" % [run.path.size(), run.score], Vector2(0, 206), 8, Color("#ff5a78"), 2)
+		entries = [["new", "NEW RUN"], ["menu", "MAIN MENU"]]
 	elif run.over == "won":
 		var end := Story.ending(run)
-		_text(end.title, Vector2(0, 52), 16, Color("#7dff6a"), 4)
-		for i in end.lines.size():
-			_text(end.lines[i], Vector2(0, 186 + i * 11), 8, Color.WHITE, 2)
-		_text("FINAL SCORE %d   LIVES LEFT %d" % [run.score, run.lives], Vector2(0, 222), 8, LINE, 2)
-		entries = [["new", "DRIVE IT AGAIN"], ["menu", "MAIN MENU"]]
+		_text(end.title, Vector2(0, 56), 16, Color("#7dff6a"), 4)
+		_text("SCORE %d" % run.score, Vector2(0, 108), 16, LINE, 4)
+		_text("LIVES %d/%d   WALKED %d   LOST CARGO %d" % [run.lives, Story.LIVES, run.walked, run.lost_cargo],
+				Vector2(0, 142), 8, Color.WHITE, 2)
+		entries = [["new", "NEW RUN"], ["menu", "MAIN MENU"]]
 		Audio.play("level_clear", -4.0)
 	else:
 		_text("LIVES %d/%d    SCORE %d" % [run.lives, Story.LIVES, run.score], Vector2(0, 44), 8, Color("#ff5a78"), 2)
 		if run.at == "":  # a fork: pick the way
 			var last: String = run.path[-1]
 			_choices = Story.leg(last).next
-			_text("THE ROAD SPLITS. WHICH WAY?", Vector2(0, 202), 8, Color.WHITE, 2)
-			_about = _text("", Vector2(0, 214), 8, Color("#3cf0dc"), 2)
+			_text("CHOOSE ROUTE", Vector2(0, 200), 8, Color.WHITE, 2)
+			_about = _text("", Vector2(0, 212), 8, Color("#3cf0dc"), 2)
 			for id in _choices:
 				entries.append([id, Story.leg(id).title])
 		else:
 			var leg := Story.leg(run.at)
-			_text(leg.blurb.to_upper(), Vector2(0, 208), 8, Color.WHITE, 2)
+			_text("  /  ".join(leg.get("tags", [])), Vector2(0, 208), 8, Color("#3cf0dc"), 2)
 			entries.append(["go", "DRIVE: " + leg.title])
 		entries.append(["quit", "QUIT RUN"])
 	menu = MenuList.new().setup(entries, 8, 11)
@@ -67,7 +68,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_time += delta
 	if _about and menu.index < _choices.size():
-		_about.text = Story.leg(_choices[menu.index]).blurb.to_upper()
+		_about.text = "  /  ".join(Story.leg(_choices[menu.index]).get("tags", []))
 	elif _about:
 		_about.text = ""
 	queue_redraw()
