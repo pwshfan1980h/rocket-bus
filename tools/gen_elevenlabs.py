@@ -102,6 +102,59 @@ SFX = {
     "goat_bleat": ("Mountain goat bleating once, funny", 1.0, False),
     "vulture_caw": ("Vulture caw, raspy bird call in the desert", 1.0, False),
     "penguin_squawk": ("Penguin squawk, short honking call", 0.8, False),
+    "bat_squeak": ("High-pitched tiny bat squeak chirp in a cave, quick and crisp", 0.5, False),
+    "lizard_scurry": ("Small desert lizard quickly scurrying across dry sand and pebbles, brief rustling patter", 0.6, False),
+    "snake_hiss": ("Sharp desert rattlesnake hiss with a brief dry tail rattle warning", 0.9, False),
+    "rustle": ("Brief dry desert bush and tumbleweed leaves rustling in a gust of wind", 0.7, False),
+    # --- UI & menus ------------------------------------------------------------
+    "ui_move": ("Loud close-mic crisp mechanical dashboard toggle switch click, punchy single tactile UI tick", 0.5, False),
+    "ui_select": ("Loud crisp playful vintage bus fare-box brass button ding-click confirmation sound, short", 0.5, False),
+    "ui_back": ("Close-mic punchy wooden mechanical cancel click with a low downward thump, short UI back sound", 0.5, False),
+    "ui_start": ("Punchy retro arcade start-game brass fanfare hit with a playful sax horn accent and bright chime", 1.0, False),
+    "typewriter": ("Loud close-mic single crisp mechanical vintage typewriter key strike clack, dry and sharp", 0.5, False),
+    # --- arcade cues & scoring -------------------------------------------------
+    "count_beep": ("Loud crisp race-start countdown beep, warm retro analog tone, punchy short pip", 0.5, False),
+    "count_go": ("Race-start green-light GO signal: bright triumphant analog brass chime chord with energetic pop", 0.8, False),
+    "score_tick": ("Loud close-mic single crisp mechanical odometer counter tick, sharp tactile click", 0.5, False),
+    "star": ("Bright sparkling metallic bell chime arcade star pickup ding, crisp and joyful", 0.7, False),
+    "stamp": ("Heavy rubber ink stamp slamming firmly onto a paper clipboard, punchy thud and crisp impact", 0.6, False),
+    "cha_ching": ("Classic vintage brass cash register cha-ching bell with coins jingling happily, crisp and celebratory", 1.4, False),
+    "fuel_pickup": ("Quick satisfying liquid glug refueling gulp followed by a bright rising power-up chime", 0.8, False),
+    "fuel_low": ("Urgent vintage vehicle dashboard double-beep low-fuel warning chime, crisp mechanical alert", 0.6, False),
+    "gap_cleared": ("Crisp upbeat two-note arcade success chime, bright marimba and brass ping", 0.6, False),
+    "title_slam": ("Huge cinematic arcade title impact slam: punchy bass boom, brass hit, and crisp metallic ring", 1.6, False),
+    # --- jingles & stings ------------------------------------------------------
+    "jingle_good": ("Short cheerful two-note upbeat brass and electric piano success sting, playful jazz-arcade feel", 0.7, False),
+    "jingle_perfect": ("Triumphant bright four-note brass and sax fanfare flourish with sparkling chime, celebratory stunt landing", 1.1, False),
+    "level_clear": ("Joyful upbeat arcade stage-clear victory fanfare with honking baritone sax, bright horns, hand clap and cymbal crash", 2.2, False),
+    "fail_jingle": ("Playful comedic descending wah-wah trombone and baritone sax fail jingle, classic cartoon game over sting", 1.8, False),
+    "sting_hard": ("Short comedic crunchy brass and percussion ouch sting, playful minor jab", 0.7, False),
+    "sting_crash": ("Dramatic comedic brass horn and crashing cymbal wipeout sting with descending slide", 1.6, False),
+    # --- character voices ------------------------------------------------------
+    "voice_blip": ("Single tiny playful cartoon voice mumble syllable, short cute gibberish speech chirp", 0.5, False),
+    "voice_happy": ("Short cheerful cartoon passenger excited woohoo happy vocal exclamation, playful and brisk", 0.6, False),
+    "voice_hurt": ("Short comedic cartoon oof startled grunt reaction, playful slapstick voice", 0.5, False),
+    "voice_glub": ("Funny cartoon underwater vocal blub-blub gurgling voice sound, short and bubbly", 0.6, False),
+    "voice_driver": ("Gruff friendly older cartoon bus driver short gravelly vocal mumble grunt", 0.6, False),
+    "voice_driver_shout": ("Gruff older cartoon bus driver energetic loud gravelly shout exclamation, playful", 0.8, False),
+}
+
+# Max duration cap (seconds) for ultra-snappy UI/voice one-shots whose ElevenLabs 0.5s minimum
+# would otherwise drag. Trimmed cleanly after leading silence removal with a proportional fade-out.
+MAX_SEC = {
+    "ui_move": 0.12,
+    "score_tick": 0.08,
+    "typewriter": 0.08,
+    "ui_back": 0.28,
+    "ui_select": 0.34,
+    "count_beep": 0.26,
+    "voice_blip": 0.20,
+    "voice_hurt": 0.38,
+    "voice_happy": 0.45,
+    "voice_driver": 0.42,
+    "voice_driver_shout": 0.65,
+    "bat_squeak": 0.38,
+    "lizard_scurry": 0.45,
 }
 
 # Written from each place's mood and moment, not from the old soundtrack. Every track
@@ -198,10 +251,23 @@ def process_sfx(name):
     _, _, loop = SFX[name]
     out = os.path.join(SFX_OUT, name + ".wav")
     tmp = os.path.join(RAW, name + ".tmp.wav")
-    # Loops stay whole (ElevenLabs made them seamless); one-shots lose silence at both ends.
-    trim = [] if loop else ["-af", "silenceremove=start_periods=1:start_threshold=-50dB,areverse,"
-                            "silenceremove=start_periods=1:start_threshold=-55dB,areverse"]
-    run(["ffmpeg", "-y", "-hide_banner", "-i", raw(name)] + trim + ["-ac", "1", "-ar", "44100", tmp], check=True)
+    # Loops stay whole (ElevenLabs made them seamless); one-shots lose silence at both ends
+    # using a threshold relative to the take's peak so quiet close-mic clicks are never wiped.
+    if loop:
+        af = []
+    else:
+        _, raw_peak = volume(raw(name))
+        thr_start = min(-35.0, raw_peak - 32.0)
+        thr_end = min(-40.0, raw_peak - 38.0)
+        chain = ("silenceremove=start_periods=1:start_threshold=%.1fdB,areverse,"
+                 "silenceremove=start_periods=1:start_threshold=%.1fdB,areverse") % (thr_start, thr_end)
+        if name in MAX_SEC:
+            chain += ",atrim=0:%.3f" % MAX_SEC[name]
+        af = ["-af", chain]
+    run(["ffmpeg", "-y", "-hide_banner", "-i", raw(name)] + af + ["-ac", "1", "-ar", "44100", tmp], check=True)
+    if duration(tmp) < 0.015:
+        cap = ["-t", "%.3f" % MAX_SEC[name]] if name in MAX_SEC else []
+        run(["ffmpeg", "-y", "-hide_banner", "-i", raw(name)] + cap + ["-ac", "1", "-ar", "44100", tmp], check=True)
     mean, peak = volume(tmp)
     # Mean level (dB) of the synth file this replaces, recorded once in elevenlabs_levels.json
     # so reprocessing is repeatable; new names fall back to MATCH.
@@ -211,7 +277,9 @@ def process_sfx(name):
     gain = min(target - mean, (-1.0 - peak) + (10.0 if loop else 6.0))
     fx = "volume=%.2fdB,alimiter=limit=0.89:level=false" % gain
     if not loop:
-        fx += ",afade=t=out:st=%.3f:d=0.05" % max(0.0, duration(tmp) - 0.05)
+        dur = duration(tmp)
+        fade = min(0.05, dur * 0.28)
+        fx += ",afade=t=out:st=%.3f:d=%.3f" % (max(0.0, dur - fade), fade)
     run(["ffmpeg", "-y", "-hide_banner", "-i", tmp, "-af", fx, "-c:a", "pcm_s16le", out], check=True)
     os.remove(tmp)
     return gain

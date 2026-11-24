@@ -1,8 +1,8 @@
 # Audio
 
-Music and most sound effects are generated with the ElevenLabs CLI (`elevenlabs`,
+All 16 music tracks and all 82 sound effects are generated with the ElevenLabs CLI (`elevenlabs`,
 npm `@elevenlabs/cli`) by `tools/gen_elevenlabs.py`. That script's `SFX` and `MUSIC`
-tables are the source of truth. The tables below were copied from it on 2026-11-19.
+tables are the source of truth.
 
 ## Sound identity
 
@@ -36,10 +36,9 @@ jungle, tense blizzard, scorching lava, weightless moon, and a bittersweet last 
 - New hooks: `ash_loop` (ash weather, `weather.gd`), `mudslide_loop` (the chase in
   `chase.gd`, louder as the wave nears the middle of the screen and fading out when the
   run ends; it replaces the repeated thunder claps).
-- Left synthesized on purpose: UI blips, count-in beeps, score ticks, jingles and stings,
-  voice blips, `fuel_pickup`/`fuel_low`, `cha_ching`, `stamp`, `star`, `typewriter`, and
-  a few small critters (`snake_hiss`, `bat_squeak`, `lizard_scurry`, `rustle`). They're
-  tiny chiptune cues that suit the pixel style, and the 0.5 s minimum length would hurt them.
+- Ultra-short UI, scoring, and voice cues (`ui_move`, `score_tick`, `typewriter`, `count_beep`,
+  `voice_blip`, etc.) are capped via `MAX_SEC` in `tools/gen_elevenlabs.py` with a peak-relative
+  silence trim and proportional fade-out so ElevenLabs' 0.5 s minimum length stays snappy in-game.
 
 ## Which track plays where
 
